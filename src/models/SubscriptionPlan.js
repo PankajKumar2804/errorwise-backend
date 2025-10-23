@@ -1,4 +1,5 @@
-const { sequelize, DataTypes } = require('../config/database');
+const { DataTypes } = require('sequelize');
+const sequelize = require('../config/database');
 
 const SubscriptionPlan = sequelize.define('SubscriptionPlan', {
   plan_id: {
@@ -38,6 +39,29 @@ const SubscriptionPlan = sequelize.define('SubscriptionPlan', {
   description: {
     type: DataTypes.TEXT,
     allowNull: true
+  },
+  dodo_plan_id: {
+    type: DataTypes.STRING(100),
+    allowNull: true,
+    comment: 'Dodo Payments plan ID'
+  },
+  dodo_product_id: {
+    type: DataTypes.STRING(100),
+    allowNull: true,
+    comment: 'Dodo Payments product ID'
+  },
+  stripe_plan_id: {
+    type: DataTypes.STRING(100),
+    allowNull: true,
+    comment: 'Legacy Stripe plan ID (deprecated)'
+  },
+  billing_interval: {
+    type: DataTypes.ENUM('month', 'year'),
+    defaultValue: 'month'
+  },
+  trial_period_days: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
   },
   is_active: {
     type: DataTypes.BOOLEAN,

@@ -30,11 +30,23 @@ const Subscription = sequelize.define('Subscription', {
   },
   dodoSubscriptionId: { 
     type: DataTypes.STRING, 
-    allowNull: true 
+    allowNull: true,
+    comment: 'Dodo Payments subscription ID'
+  },
+  dodoCustomerId: { 
+    type: DataTypes.STRING, 
+    allowNull: true,
+    comment: 'Dodo Payments customer ID'
   },
   dodoSessionId: { 
     type: DataTypes.STRING, 
-    allowNull: true 
+    allowNull: true,
+    comment: 'Dodo Payments session ID'
+  },
+  legacyStripeId: { 
+    type: DataTypes.STRING, 
+    allowNull: true,
+    comment: 'Legacy Stripe subscription ID (deprecated)'
   },
   lastPaymentDate: { 
     type: DataTypes.DATE, 
