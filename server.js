@@ -41,6 +41,7 @@ const subscriptionRoutes = require('./src/routes/subscriptions');
 const historyRoutes = require('./src/routes/history');
 const settingsRoutes = require('./src/routes/settings');
 const webhookRoutes = require('./src/routes/webhooks');
+const webhookRoutes = require('./src/routes/webhooks');
 
 // Health check
 app.get('/health', (req, res) => {

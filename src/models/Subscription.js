@@ -9,8 +9,7 @@ const Subscription = sequelize.define('Subscription', {
   },
   userId: { 
     type: DataTypes.UUID, 
-    allowNull: false,
-    field: 'user_id' // Map to database column
+    allowNull: false
   },
   tier: { 
     type: DataTypes.ENUM('free', 'pro', 'enterprise'), 
