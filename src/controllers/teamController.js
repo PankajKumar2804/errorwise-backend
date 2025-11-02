@@ -15,18 +15,33 @@ exports.createTeam = async (req, res) => {
     const userId = req.user.id;
     const { name, description, maxMembers = -1 } = req.body; // -1 means unlimited
 
-    // Check if user has team subscription
-    const user = await User.findByPk(userId, {
-      include: [{
-        model: Subscription,
-        as: 'subscription'
-      }]
+    // Get user and subscription separately
+    const user = await User.findByPk(userId);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const subscription = await Subscription.findOne({
+      where: { userId },
+      attributes: ['id', 'tier', 'status', 'endDate']
     });
 
-    if (!user || user.subscription_tier !== 'team') {
+    // Check if user has active team subscription
+    if (!subscription || subscription.tier !== 'team' || subscription.status !== 'active') {
       return res.status(403).json({
         error: 'Team subscription required',
-        message: 'You need a Team subscription to create teams'
+        message: 'You need an active Team subscription to create teams. Please upgrade your plan.',
+        upgradeUrl: '/pricing',
+        currentTier: subscription?.tier || 'free'
+      });
+    }
+
+    // Check if subscription hasn't expired
+    if (subscription.endDate && new Date(subscription.endDate) < new Date()) {
+      return res.status(403).json({
+        error: 'Subscription expired',
+        message: 'Your team subscription has expired. Please renew to create teams.',
+        upgradeUrl: '/pricing'
       });
     }
 
@@ -38,7 +53,7 @@ exports.createTeam = async (req, res) => {
       name,
       description,
       owner_id: userId,
-      subscription_id: user.subscription?.id,
+      subscription_id: subscription?.id || null,
       max_members: maxMembers,
       video_room_id: videoRoomId
     });
@@ -68,7 +83,10 @@ exports.createTeam = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Create team error:', error);
+    console.error('Create team error - DETAILED:', error);
+    console.error('Error name:', error.name);
+    console.error('Error message:', error.message);
+    console.error('Error stack:', error.stack);
     res.status(500).json({ error: 'Failed to create team' });
   }
 };

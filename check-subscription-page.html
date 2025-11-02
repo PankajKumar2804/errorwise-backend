@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Subscription Page Diagnostic</title>
+</head>
+<body>
+    <h1>Checking Subscription Page...</h1>
+    <div id="results"></div>
+    
+    <script>
+        const results = document.getElementById('results');
+        
+        // Check if frontend is running
+        fetch('http://localhost:3000/subscription')
+            .then(res => res.text())
+            .then(html => {
+                results.innerHTML += '<h2>✅ Frontend is responding</h2>';
+                results.innerHTML += '<h3>HTML Response:</h3>';
+                results.innerHTML += '<pre>' + html.substring(0, 500) + '...</pre>';
+                
+                // Check if it has React root
+                if (html.includes('id="root"')) {
+                    results.innerHTML += '<p>✅ React root div found</p>';
+                } else {
+                    results.innerHTML += '<p>❌ React root div NOT found</p>';
+                }
+                
+                // Check for scripts
+                const scriptCount = (html.match(/<script/g) || []).length;
+                results.innerHTML += '<p>Scripts found: ' + scriptCount + '</p>';
+            })
+            .catch(err => {
+                results.innerHTML += '<h2>❌ Frontend not responding</h2>';
+                results.innerHTML += '<p>Error: ' + err.message + '</p>';
+                results.innerHTML += '<p><strong>Action: Start frontend with "npm run dev" in the frontend directory</strong></p>';
+            });
+    </script>
+</body>
+</html>

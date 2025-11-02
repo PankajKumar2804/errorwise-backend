@@ -1,17 +1,21 @@
-# Dependencies
+﻿# Dependencies
 node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+package-lock.json
 
-# Environment variables and secrets
+# Environment variables and secrets - NEVER COMMIT THESE!
 .env
+.env.*
+!.env.example
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
+.env.production.template
 
-# API Keys and Credentials (never commit these!)
+# API Keys and Credentials
 *.key
 *.pem
 *.p12
@@ -19,21 +23,31 @@ yarn-error.log*
 credentials.json
 secrets.json
 
+# Backup files - DO NOT COMMIT
+*.backup
+*.bak
+*.old
+*.orig
+*~
+.*.swp
+.*.swo
+
+# Database
+*.sqlite
+*.sqlite3
+*.db
+/data
+/database
+
 # Logs
-logs
+logs/
 *.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
 
-# Runtime data
-pids
-*.pid
-*.seed
-*.pid.lock
-
-# Coverage directory used by tools like istanbul
-coverage/
-*.lcov
-
-# OS generated files
+# OS files
 .DS_Store
 .DS_Store?
 ._*
@@ -41,18 +55,88 @@ coverage/
 .Trashes
 ehthumbs.db
 Thumbs.db
+desktop.ini
 
-# IDE files
-.vscode/settings.json
+# IDE / Editor files
+.vscode/
 .idea/
 *.swp
 *.swo
 *~
+.project
+.classpath
+.settings/
+*.sublime-project
+*.sublime-workspace
 
-# Build directories
+# Testing
+coverage/
+.nyc_output/
+test-results/
+*.test.js.snap
+
+# Build outputs
 dist/
 build/
+out/
+.next/
+.nuxt/
+.cache/
 
 # Temporary files
 tmp/
 temp/
+*.tmp
+
+# Redis dump
+dump.rdb
+
+# PM2
+.pm2/
+pm2.log
+
+
+# Documentation files (keep locally, don't push)
+*-SUMMARY.md
+*-COMPLETE.md
+*-GUIDE.md
+*-ROADMAP.md
+*-IMPLEMENTATION.md
+*-STATUS.md
+*-REPORT.md
+*-ANALYSIS.md
+*-UPDATES.md
+*-FIX*.md
+*DEPLOYMENT*.md
+*MIGRATION*.md
+API_DIAGNOSIS.md
+FEATURES.md
+COMPLETE-*.md
+COMPREHENSIVE-*.md
+ENHANCED-*.md
+
+# Test/Debug files (keep locally, don't push)
+test-*.js
+debug-*.js
+check-*.js
+diagnose-*.js
+create-*.js
+delete-*.js
+*-test.js
+*-debug.js
+minimal-*.js
+auto-*.ps1
+deploy-*.ps1
+deploy-*.js
+
+# Additional scripts to keep local
+seed-*.js
+migrate-*.js
+migration.js
+
+
+# Log files - keep locally
+*.log
+combined.log
+error.log
+

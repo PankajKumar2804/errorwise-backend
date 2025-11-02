@@ -3,15 +3,11 @@ const router = express.Router();
 const subscriptionController = require('../controllers/subscriptionController');
 const { authMiddleware } = require('../middleware/auth');
 
-// Webhook endpoint (no auth required)
+// Public endpoints (no auth required)
 router.post('/webhook', subscriptionController.handleWebhook);
-
+router.get('/plans', subscriptionController.getPlans);
 // All other subscription routes require authentication
 router.use(authMiddleware);
-
-// Get subscription plans
-router.get('/plans', subscriptionController.getPlans);
-
 // Get user subscription
 router.get('/', subscriptionController.getSubscription);
 

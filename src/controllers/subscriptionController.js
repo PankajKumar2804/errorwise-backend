@@ -1,45 +1,146 @@
 const User = require('../models/User');
 const Subscription = require('../models/Subscription');
+const logger = require('../utils/logger');
 
-// Get user subscription
+// Subscription tier configuration
+const SUBSCRIPTION_TIERS = {
+  free: {
+    name: 'Free',
+    price: 0,
+    interval: 'month',
+    features: {
+      dailyQueries: -1, // No daily limit
+      monthlyQueries: 50, // 50 queries per month
+      errorExplanation: true,
+      fixSuggestions: false,
+      codeExamples: false,
+      documentationLinks: true,
+      errorHistory: '7 days',
+      teamFeatures: false,
+      aiProvider: 'gemini-2.0-flash',
+      maxTokens: 800,
+      supportLevel: 'community',
+      advancedAnalysis: false,
+      priorityQueue: false
+    }
+  },
+  pro: {
+    name: 'Pro',
+    price: 2,
+    interval: 'month',
+    trialDays: 7,
+    features: {
+      dailyQueries: -1, // unlimited
+      errorExplanation: true,
+      fixSuggestions: true,
+      codeExamples: true,
+      documentationLinks: true,
+      errorHistory: 'unlimited',
+      teamFeatures: false,
+      aiProvider: 'gpt-3.5-turbo',
+      maxTokens: 1200,
+      supportLevel: 'email',
+      advancedAnalysis: true,
+      priorityQueue: true,
+      multiLanguageSupport: true,
+      exportHistory: true
+    }
+  },
+  team: {
+    name: 'Team',
+    price: 8,
+    interval: 'month',
+    trialDays: 14,
+    features: {
+      dailyQueries: -1, // unlimited
+      errorExplanation: true,
+      fixSuggestions: true,
+      codeExamples: true,
+      documentationLinks: true,
+      errorHistory: 'unlimited',
+      teamFeatures: true,
+      teamMembers: 10,
+      sharedHistory: true,
+      teamDashboard: true,
+      aiProvider: 'gpt-4',
+      maxTokens: 2000,
+      supportLevel: 'priority',
+      advancedAnalysis: true,
+      priorityQueue: true,
+      multiLanguageSupport: true,
+      exportHistory: true,
+      apiAccess: true,
+      customIntegrations: true
+    }
+  }
+};
+
+// Get user subscription with comprehensive info
 exports.getSubscription = async (req, res) => {
   try {
     const userId = req.user.id;
 
-    const subscription = await Subscription.findOne({
-      where: { userId },
-      include: [{
-        model: User,
-        attributes: ['username', 'email']
-      }]
+    // Get user with subscription info
+    const user = await User.findByPk(userId, {
+      attributes: [
+        'id', 'username', 'email', 'subscriptionTier', 
+        'subscriptionStatus', 'subscriptionEndDate', 
+        'subscriptionStartDate', 'trialEndsAt'
+      ]
     });
 
-    // If no subscription found, return free tier
-    if (!subscription) {
-      return res.json({
-        tier: 'free',
-        status: 'active',
-        features: {
-          maxQueries: 10,
-          aiProviders: ['mock'],
-          advancedAnalysis: false,
-          prioritySupport: false
-        },
-        limits: {
-          queriesUsed: 0,
-          queriesRemaining: 10
-        }
-      });
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
     }
 
+    const tier = user.subscriptionTier || 'free';
+    const status = user.subscriptionStatus || 'active';
+    
+    // Check if subscription has expired
+    const now = new Date();
+    let actualStatus = status;
+    
+    if (user.subscriptionEndDate && new Date(user.subscriptionEndDate) < now) {
+      actualStatus = 'expired';
+      // Auto-downgrade to free if expired
+      if (tier !== 'free') {
+        await user.update({
+          subscriptionTier: 'free',
+          subscriptionStatus: 'expired'
+        });
+      }
+    }
+
+    // Get usage limits
+    const usage = await getUsageLimits(userId, tier);
+    
+    // Get tier configuration
+    const tierConfig = SUBSCRIPTION_TIERS[tier] || SUBSCRIPTION_TIERS.free;
+
     res.json({
-      id: subscription.id,
-      tier: subscription.tier,
-      status: subscription.status,
-      startDate: subscription.startDate,
-      endDate: subscription.endDate,
-      features: getFeaturesByTier(subscription.tier),
-      limits: await getUsageLimits(userId, subscription.tier)
+      user: {
+        id: user.id,
+        email: user.email,
+        username: user.username
+      },
+      subscription: {
+        tier,
+        status: actualStatus,
+        startDate: user.subscriptionStartDate,
+        endDate: user.subscriptionEndDate,
+        trialEndsAt: user.trialEndsAt,
+        isActive: actualStatus === 'active' || actualStatus === 'trial',
+        isTrial: status === 'trial'
+      },
+      plan: {
+        name: tierConfig.name,
+        price: tierConfig.price,
+        interval: tierConfig.interval,
+        features: tierConfig.features
+      },
+      usage,
+      canUpgrade: tier !== 'team',
+      canDowngrade: tier !== 'free'
     });
 
   } catch (error) {
@@ -48,110 +149,178 @@ exports.getSubscription = async (req, res) => {
   }
 };
 
-// Get subscription plans
+// Get subscription plans with detailed features
 exports.getPlans = async (req, res) => {
   try {
-    const dodoConfig = require('../config/dodoPayments');
+    const sequelize = require('../config/database');
     
-    const plans = [
-      {
-        id: 'free',
-        name: dodoConfig.plans.free.name,
-        price: dodoConfig.plans.free.price,
-        interval: dodoConfig.plans.free.interval,
-        features: {
-          dailyQueries: dodoConfig.plans.free.features.dailyQueries,
-          errorExplanation: dodoConfig.plans.free.features.errorExplanation,
-          fixSuggestions: dodoConfig.plans.free.features.fixSuggestions,
-          documentationLinks: dodoConfig.plans.free.features.documentationLinks,
-          errorHistory: dodoConfig.plans.free.features.errorHistory
-        },
-        description: 'Perfect for trying out ErrorWise - 3 error explanations per day'
-      },
-      {
-        id: 'pro',
-        name: dodoConfig.plans.pro.name,
-        price: dodoConfig.plans.pro.price,
-        interval: dodoConfig.plans.pro.interval,
-        trialDays: dodoConfig.plans.pro.trialDays,
-        features: {
-          dailyQueries: dodoConfig.plans.pro.features.dailyQueries,
-          errorExplanation: dodoConfig.plans.pro.features.errorExplanation,
-          fixSuggestions: dodoConfig.plans.pro.features.fixSuggestions,
-          documentationLinks: dodoConfig.plans.pro.features.documentationLinks,
-          errorHistory: dodoConfig.plans.pro.features.errorHistory,
-          advancedAnalysis: dodoConfig.plans.pro.features.advancedAnalysis
-        },
-        description: 'Unlimited error queries with fixes, documentation, and complete history'
-      },
-      {
-        id: 'team',
-        name: dodoConfig.plans.team.name,
-        price: dodoConfig.plans.team.price,
-        interval: dodoConfig.plans.team.interval,
-        trialDays: dodoConfig.plans.team.trialDays,
-        features: {
-          dailyQueries: dodoConfig.plans.team.features.dailyQueries,
-          errorExplanation: dodoConfig.plans.team.features.errorExplanation,
-          fixSuggestions: dodoConfig.plans.team.features.fixSuggestions,
-          documentationLinks: dodoConfig.plans.team.features.documentationLinks,
-          errorHistory: dodoConfig.plans.team.features.errorHistory,
-          teamFeatures: dodoConfig.plans.team.features.teamFeatures,
-          sharedHistory: dodoConfig.plans.team.features.sharedHistory,
-          teamDashboard: dodoConfig.plans.team.features.teamDashboard,
-          teamMembers: dodoConfig.plans.team.features.teamMembers
-        },
-        description: 'Everything in Pro plus shared team history and collaboration features'
-      }
-    ];
+    // Query database for plans
+    const [dbPlans] = await sequelize.query(`
+      SELECT * FROM subscription_plans 
+      ORDER BY price ASC
+    `);
+    
+    // If database has plans, format and return them
+    if (dbPlans && dbPlans.length > 0) {
+      // Group plans by tier (filter out yearly duplicates for now, show monthly)
+      const plansByTier = {
+        free: null,
+        pro: null,
+        team: null
+      };
+      
+      dbPlans.forEach(plan => {
+        const nameLower = plan.name.toLowerCase();
+        
+        if (nameLower.includes('free')) {
+          if (!plansByTier.free) plansByTier.free = plan;
+        } else if (nameLower.includes('pro') && !nameLower.includes('year')) {
+          if (!plansByTier.pro) plansByTier.pro = plan;
+        } else if (nameLower.includes('team') && !nameLower.includes('year')) {
+          if (!plansByTier.team) plansByTier.team = plan;
+        }
+      });
+      
+      const formattedPlans = Object.keys(plansByTier)
+        .filter(key => plansByTier[key] !== null)
+        .map(tierKey => {
+          const plan = plansByTier[tierKey];
+          const tierConfig = SUBSCRIPTION_TIERS[tierKey] || SUBSCRIPTION_TIERS.free;
+          
+          return {
+            id: plan.id,
+            name: plan.name,
+            price: parseFloat(plan.price) || 0,
+            interval: plan.interval || 'month',
+            trialDays: plan.trial_days || 0,
+            features: tierConfig.features, // Use features from SUBSCRIPTION_TIERS
+            popular: tierKey === 'pro', // Mark Pro as popular
+            description: plan.description || getPlanDescription(tierKey),
+            dodo_plan_id: plan.dodo_plan_id
+          };
+        });
+      
+      return res.json({ plans: formattedPlans });
+    }
+    
+    // Fallback to hardcoded plans if database is empty
+    console.log('⚠️  No plans in database, using hardcoded SUBSCRIPTION_TIERS');
+    const plans = Object.keys(SUBSCRIPTION_TIERS).map(tierKey => {
+      const tier = SUBSCRIPTION_TIERS[tierKey];
+      return {
+        id: tierKey,
+        name: tier.name,
+        price: tier.price,
+        interval: tier.interval,
+        trialDays: tier.trialDays || 0,
+        features: tier.features,
+        popular: tierKey === 'pro', // Mark Pro as popular
+        description: getPlanDescription(tierKey)
+      };
+    });
 
     res.json({ plans });
 
   } catch (error) {
     console.error('Failed to fetch subscription plans:', error);
-    res.status(500).json({ error: 'Failed to fetch subscription plans' });
+    res.status(500).json({ error: 'Failed to fetch subscription plans', details: error.message });
   }
 };
 
-// Create subscription with Dodo payment integration
+function getPlanDescription(tier) {
+  const descriptions = {
+    free: 'Perfect for trying out ErrorWise - 3 error explanations per day',
+    pro: 'Unlimited queries with AI-powered fixes and code examples',
+    team: 'Everything in Pro plus team collaboration and priority support'
+  };
+  return descriptions[tier] || '';
+}
+
+// Create subscription with payment integration
 exports.createSubscription = async (req, res) => {
   try {
     const userId = req.user.id;
     const { planId, successUrl, cancelUrl } = req.body;
 
     if (!planId || !['pro', 'team'].includes(planId)) {
-      return res.status(400).json({ error: 'Invalid plan ID' });
+      return res.status(400).json({ error: 'Invalid plan ID. Must be "pro" or "team"' });
     }
 
-    // Check if user already has an active subscription
-    const existingSubscription = await Subscription.findOne({
-      where: { 
-        userId,
-        status: 'active'
-      }
-    });
-
-    if (existingSubscription) {
-      return res.status(409).json({ error: 'User already has an active subscription' });
+    // Get current user
+    const user = await User.findByPk(userId);
+    
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
     }
 
-    // Get plan details from Dodo configuration
-    const dodoConfig = require('../config/dodoPayments');
-    const plan = dodoConfig.plans[planId];
+    // Check if user already has an active paid subscription
+    if (user.subscriptionTier !== 'free' && user.subscriptionStatus === 'active') {
+      return res.status(409).json({ 
+        error: 'You already have an active subscription. Please cancel it first to upgrade/downgrade.' 
+      });
+    }
+
+    // Get plan details
+    const plan = SUBSCRIPTION_TIERS[planId];
     
     if (!plan) {
       return res.status(400).json({ error: 'Invalid plan' });
     }
 
-    // Create payment session with Dodo
+    // For development/testing: Allow instant upgrade without payment
+    if (process.env.NODE_ENV === 'development' && req.body.skipPayment === true) {
+      const trialDays = plan.trialDays || 7;
+      const startDate = new Date();
+      const endDate = new Date();
+      endDate.setDate(endDate.getDate() + trialDays);
+
+      await user.update({
+        subscriptionTier: planId,
+        subscriptionStatus: 'trial',
+        subscriptionStartDate: startDate,
+        subscriptionEndDate: endDate,
+        trialEndsAt: endDate
+      });
+
+      // Send subscription confirmation email
+      const emailService = require('../services/emailService');
+      try {
+        await emailService.sendSubscriptionConfirmation(user, {
+          planName: plan.name,
+          monthlyLimit: plan.features.dailyQueries === -1 ? 'Unlimited' : plan.features.dailyQueries,
+          teamLimit: plan.features.teamMembers || 1,
+          nextBillingDate: endDate
+        });
+        logger.info('Subscription confirmation email sent', { email: user.email, plan: planId });
+      } catch (emailError) {
+        logger.error('Failed to send subscription confirmation email:', emailError);
+        // Don't fail subscription if email fails
+      }
+
+      return res.json({
+        message: 'Trial subscription activated successfully',
+        subscription: {
+          tier: planId,
+          status: 'trial',
+          startDate,
+          endDate,
+          features: plan.features
+        }
+      });
+    }
+
+    // Create payment session with Dodo Payments
     const paymentService = require('../services/paymentService');
     const paymentSession = await paymentService.createPaymentSession({
-      userId,
+      userId: user.id,
+      userEmail: user.email,
       planId,
       planName: plan.name,
       amount: plan.price,
-      currency: dodoConfig.currency,
-      successUrl: successUrl || `${process.env.FRONTEND_URL}/dashboard?payment=success`,
+      currency: 'USD',
+      interval: plan.interval,
+      trialDays: plan.trialDays || 0,
+      successUrl: successUrl || `${process.env.FRONTEND_URL}/dashboard?payment=success&session_id={CHECKOUT_SESSION_ID}`,
       cancelUrl: cancelUrl || `${process.env.FRONTEND_URL}/pricing?payment=cancelled`
     });
 
@@ -162,6 +331,14 @@ exports.createSubscription = async (req, res) => {
       });
     }
 
+    // Store session ID for verification later
+    await Subscription.create({
+      userId: user.id,
+      tier: planId,
+      status: 'pending',
+      dodoSessionId: paymentSession.sessionId
+    });
+
     res.status(201).json({
       message: 'Payment session created successfully',
       sessionId: paymentSession.sessionId,
@@ -169,13 +346,15 @@ exports.createSubscription = async (req, res) => {
       plan: {
         id: planId,
         name: plan.name,
-        price: plan.price
+        price: plan.price,
+        interval: plan.interval,
+        trialDays: plan.trialDays || 0
       }
     });
 
   } catch (error) {
     console.error('Failed to create subscription:', error);
-    res.status(500).json({ error: 'Failed to create subscription' });
+    res.status(500).json({ error: 'Failed to create subscription', message: error.message });
   }
 };
 
@@ -184,27 +363,51 @@ exports.cancelSubscription = async (req, res) => {
   try {
     const userId = req.user.id;
 
-    const subscription = await Subscription.findOne({
-      where: { 
-        userId,
-        status: 'active'
-      }
-    });
-
-    if (!subscription) {
-      return res.status(404).json({ error: 'No active subscription found' });
+    const user = await User.findByPk(userId);
+    
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
     }
 
-    // Update subscription status to cancelled
-    await subscription.update({ status: 'cancelled' });
+    if (user.subscriptionTier === 'free') {
+      return res.status(400).json({ error: 'No active paid subscription to cancel' });
+    }
+
+    // Update user subscription to cancelled
+    // Keep access until end of billing period
+    await user.update({ 
+      subscriptionStatus: 'cancelled'
+      // Don't change tier yet - let them use until expiry
+    });
+
+    // Also update Subscription record if exists
+    await Subscription.update(
+      { status: 'cancelled' },
+      { where: { userId, status: 'active' } }
+    );
+
+    // Send cancellation confirmation email
+    const emailService = require('../services/emailService');
+    try {
+      await emailService.sendCancellationConfirmation(
+        user.email,
+        user.username,
+        user.subscriptionTier,
+        user.subscriptionEndDate
+      );
+      logger.info('Cancellation confirmation email sent', { email: user.email });
+    } catch (emailError) {
+      logger.error('Failed to send cancellation confirmation email:', emailError);
+      // Don't fail cancellation if email fails
+    }
 
     res.json({
-      message: 'Subscription cancelled successfully',
+      message: 'Subscription cancelled successfully. You will retain access until the end of your billing period.',
       subscription: {
-        id: subscription.id,
-        tier: subscription.tier,
-        status: subscription.status,
-        endDate: subscription.endDate
+        tier: user.subscriptionTier,
+        status: 'cancelled',
+        endDate: user.subscriptionEndDate,
+        message: `Your ${user.subscriptionTier} plan will remain active until ${user.subscriptionEndDate ? new Date(user.subscriptionEndDate).toLocaleDateString() : 'the end of the billing period'}`
       }
     });
 
@@ -284,16 +487,18 @@ exports.verifyPayment = async (req, res) => {
       }
     });
 
-    if (subscription) {
+    if (subscription && subscription.status === 'active') {
+      // Get user details
+      const user = await User.findByPk(userId);
+      
       res.json({
         success: true,
         subscription: {
-          id: subscription.id,
-          tier: subscription.tier,
-          status: subscription.status,
-          startDate: subscription.startDate,
-          endDate: subscription.endDate,
-          features: getFeaturesByTier(subscription.tier)
+          tier: user.subscriptionTier,
+          status: user.subscriptionStatus,
+          startDate: user.subscriptionStartDate,
+          endDate: user.subscriptionEndDate,
+          features: SUBSCRIPTION_TIERS[user.subscriptionTier]?.features || {}
         }
       });
     } else {
@@ -315,32 +520,25 @@ exports.updateSubscription = async (req, res) => {
     const userId = req.user.id;
     const { plan, status, end_date } = req.body;
 
-    let subscription = await Subscription.findOne({ where: { userId } });
-
-    if (!subscription) {
-      // Create new subscription
-      subscription = await Subscription.create({
-        userId,
-        tier: plan,
-        status,
-        endDate: end_date,
-        startDate: new Date()
-      });
-    } else {
-      // Update existing subscription
-      await subscription.update({
-        tier: plan,
-        status,
-        endDate: end_date
-      });
+    const user = await User.findByPk(userId);
+    
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
     }
 
+    // Update user subscription fields
+    await user.update({
+      subscriptionTier: plan,
+      subscriptionStatus: status,
+      subscriptionEndDate: end_date,
+      subscriptionStartDate: user.subscriptionStartDate || new Date()
+    });
+
     res.json({
-      id: subscription.id,
-      tier: subscription.tier,
-      status: subscription.status,
-      startDate: subscription.startDate,
-      endDate: subscription.endDate
+      tier: user.subscriptionTier,
+      status: user.subscriptionStatus,
+      startDate: user.subscriptionStartDate,
+      endDate: user.subscriptionEndDate
     });
 
   } catch (error) {
@@ -349,106 +547,55 @@ exports.updateSubscription = async (req, res) => {
   }
 };
 
-// Helper functions
-function getFeaturesByTier(tier) {
-  const dodoConfig = require('../config/dodoPayments');
-  
-  const features = {
-    free: {
-      dailyQueries: dodoConfig.plans.free.features.dailyQueries,
-      errorExplanation: dodoConfig.plans.free.features.errorExplanation,
-      fixSuggestions: dodoConfig.plans.free.features.fixSuggestions,
-      documentationLinks: dodoConfig.plans.free.features.documentationLinks,
-      errorHistory: dodoConfig.plans.free.features.errorHistory,
-      teamFeatures: dodoConfig.plans.free.features.teamFeatures,
-      supportLevel: dodoConfig.plans.free.features.supportLevel
-    },
-    pro: {
-      dailyQueries: dodoConfig.plans.pro.features.dailyQueries === -1 ? 'unlimited' : dodoConfig.plans.pro.features.dailyQueries,
-      errorExplanation: dodoConfig.plans.pro.features.errorExplanation,
-      fixSuggestions: dodoConfig.plans.pro.features.fixSuggestions,
-      documentationLinks: dodoConfig.plans.pro.features.documentationLinks,
-      errorHistory: dodoConfig.plans.pro.features.errorHistory,
-      teamFeatures: dodoConfig.plans.pro.features.teamFeatures,
-      supportLevel: dodoConfig.plans.pro.features.supportLevel,
-      advancedAnalysis: dodoConfig.plans.pro.features.advancedAnalysis
-    },
-    team: {
-      dailyQueries: dodoConfig.plans.team.features.dailyQueries === -1 ? 'unlimited' : dodoConfig.plans.team.features.dailyQueries,
-      errorExplanation: dodoConfig.plans.team.features.errorExplanation,
-      fixSuggestions: dodoConfig.plans.team.features.fixSuggestions,
-      documentationLinks: dodoConfig.plans.team.features.documentationLinks,
-      errorHistory: dodoConfig.plans.team.features.errorHistory,
-      teamFeatures: dodoConfig.plans.team.features.teamFeatures,
-      sharedHistory: dodoConfig.plans.team.features.sharedHistory,
-      teamDashboard: dodoConfig.plans.team.features.teamDashboard,
-      supportLevel: dodoConfig.plans.team.features.supportLevel,
-      teamMembers: dodoConfig.plans.team.features.teamMembers
-    }
-  };
+// Export subscription tiers for use in other modules
+exports.SUBSCRIPTION_TIERS = SUBSCRIPTION_TIERS;
 
-  return features[tier] || features.free;
-}
-
+// Helper function to get usage limits
 async function getUsageLimits(userId, tier) {
   const ErrorQuery = require('../models/ErrorQuery');
+  const { Op } = require('sequelize');
   
-  // Get current month usage
-  const currentMonth = new Date();
-  currentMonth.setDate(1);
-  currentMonth.setHours(0, 0, 0, 0);
-
-  const queriesUsed = await ErrorQuery.count({
-    where: {
-      userId,
-      createdAt: {
-        [require('sequelize').Op.gte]: currentMonth
-      }
-    }
-  });
-
-  const features = getFeaturesByTier(tier);
+  const tierConfig = SUBSCRIPTION_TIERS[tier] || SUBSCRIPTION_TIERS.free;
   
-  // Handle unlimited plans (Pro and Team)
-  if (features.dailyQueries === 'unlimited') {
+  // For unlimited plans (Pro and Team)
+  if (tierConfig.features.dailyQueries === -1) {
+    const totalUsed = await ErrorQuery.count({
+      where: { userId }
+    });
+
     return {
-      queriesUsed,
+      queriesUsed: totalUsed,
       queriesRemaining: 'unlimited',
-      dailyQueries: 'unlimited',
+      dailyLimit: 'unlimited',
+      resetTime: null,
       planType: tier
     };
   }
 
-  // For free plan, calculate daily usage
-  if (tier === 'free') {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    const dailyUsed = await ErrorQuery.count({
-      where: {
-        userId,
-        createdAt: {
-          [require('sequelize').Op.gte]: today
-        }
+  // For free plan - daily limit
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+
+  const dailyUsed = await ErrorQuery.count({
+    where: {
+      userId,
+      createdAt: {
+        [Op.gte]: today,
+        [Op.lt]: tomorrow
       }
-    });
+    }
+  });
 
-    const dailyRemaining = Math.max(0, features.dailyQueries - dailyUsed);
+  const dailyRemaining = Math.max(0, tierConfig.features.dailyQueries - dailyUsed);
 
-    return {
-      queriesUsed: dailyUsed,
-      queriesRemaining: dailyRemaining,
-      dailyQueries: features.dailyQueries,
-      planType: 'free',
-      resetTime: 'daily'
-    };
-  }
-
-  // For paid plans with unlimited queries
   return {
-    queriesUsed,
-    queriesRemaining: 'unlimited',
-    dailyQueries: 'unlimited',
-    planType: tier
+    queriesUsed: dailyUsed,
+    queriesRemaining: dailyRemaining,
+    dailyLimit: tierConfig.features.dailyQueries,
+    resetTime: tomorrow.toISOString(),
+    planType: 'free',
+    limitReached: dailyRemaining === 0
   };
 }

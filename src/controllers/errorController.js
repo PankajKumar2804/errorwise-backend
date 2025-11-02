@@ -2,12 +2,13 @@ const ErrorQuery = require('../models/ErrorQuery');
 const User = require('../models/User');
 const authService = require('../services/authService');
 const aiService = require('../services/aiService');
+const featureGating = require('../middleware/featureGating');
 const { Op } = require('sequelize');
 
 // Analyze error with AI
 exports.analyzeError = async (req, res) => {
   try {
-    const { errorMessage, language, errorType, codeSnippet, fileName, lineNumber } = req.body;
+    const { errorMessage, language, errorType, codeSnippet, fileName, lineNumber, conversationHistory } = req.body;
     const userId = req.user.id;
 
     if (!errorMessage) {
@@ -34,10 +35,14 @@ exports.analyzeError = async (req, res) => {
         lineNumber,
         language: language || 'javascript',
         errorType: errorType || 'runtime',
-        subscriptionTier
+        subscriptionTier,
+        conversationHistory: conversationHistory || [] // Pass conversation context to AI
       });
 
       const responseTime = Date.now() - startTime;
+
+      // Filter response based on user tier
+      const filteredAnalysis = featureGating.filterResponseByTier(analysis, subscriptionTier);
 
       // Save the query to database
       const errorQuery = await ErrorQuery.create({
@@ -52,16 +57,56 @@ exports.analyzeError = async (req, res) => {
         tags: analysis.tags || []
       });
 
-      res.json({
-        analysis: {
-          id: errorQuery.id,
-          errorMessage: errorMessage,
-          analysis: analysis.explanation,
-          solution: analysis.solution,
-          confidence: Math.round(analysis.confidence * 100) || 85,
-          createdAt: errorQuery.createdAt
+      // Prepare response with tier-specific data
+      const response = {
+        id: errorQuery.id,
+        errorMessage: errorMessage,
+        explanation: filteredAnalysis.explanation,
+        solution: filteredAnalysis.solution,
+        category: filteredAnalysis.category,
+        provider: filteredAnalysis.provider,
+        confidence: Math.round(filteredAnalysis.confidence * 100) || 85,
+        createdAt: errorQuery.createdAt,
+        tier: subscriptionTier
+      };
+
+      // Add premium fields for Pro/Team users
+      if (subscriptionTier === 'pro' || subscriptionTier === 'team') {
+        response.codeExample = filteredAnalysis.codeExample;
+        response.preventionTips = filteredAnalysis.preventionTips;
+        response.tags = filteredAnalysis.tags;
+        response.domainKnowledge = filteredAnalysis.domainKnowledge;
+        response.complexity = filteredAnalysis.complexity;
+        
+        if (filteredAnalysis.urlContext) {
+          response.urlContext = filteredAnalysis.urlContext;
         }
-      });
+      }
+
+      // Add Team-specific fields
+      if (subscriptionTier === 'team') {
+        response.relatedErrors = filteredAnalysis.relatedErrors;
+        response.debugging = filteredAnalysis.debugging;
+        response.alternatives = filteredAnalysis.alternatives;
+        response.resources = filteredAnalysis.resources;
+      }
+
+      // Add upgrade prompt for free users
+      if (filteredAnalysis.upgradePrompt) {
+        response.upgradePrompt = filteredAnalysis.upgradePrompt;
+      }
+
+      // Add usage info if available from middleware
+      if (req.dailyUsage) {
+        response.usage = req.dailyUsage;
+      }
+
+      // Add warning if approaching limit
+      if (req.usageWarning) {
+        response.usageWarning = req.usageWarning;
+      }
+
+      res.json(response);
 
     } catch (aiError) {
       console.error('AI Analysis error:', aiError);
@@ -221,7 +266,7 @@ exports.getHistory = async (req, res) => {
 exports.getRecentAnalyses = async (req, res) => {
   try {
     const userId = req.user.id;
-    const limit = parseInt(req.query.limit) || 10;
+    const limit = parseInt(req.query.limit) || 25;
 
     const errorQueries = await ErrorQuery.findAll({
       where: { userId },

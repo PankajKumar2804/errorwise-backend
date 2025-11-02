@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ErrorWise - Authentication Test</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 500px;
+            width: 100%;
+            padding: 40px;
+        }
+
+        h1 {
+            color: #667eea;
+            margin-bottom: 30px;
+            text-align: center;
+            font-size: 28px;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 30px;
+            border-bottom: 2px solid #e0e0e0;
+        }
+
+        .tab {
+            padding: 12px 24px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            color: #666;
+            transition: all 0.3s;
+            border-bottom: 3px solid transparent;
+        }
+
+        .tab.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+        }
+
+        .form-section {
+            display: none;
+        }
+
+        .form-section.active {
+            display: block;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        input, select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        input:focus, select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        button {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.3s;
+            margin-top: 10px;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .message {
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+
+        .message.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .message.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .user-info {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+
+        .user-info h3 {
+            color: #667eea;
+            margin-bottom: 15px;
+        }
+
+        .user-info p {
+            margin: 8px 0;
+            color: #555;
+        }
+
+        .security-questions {
+            background: #f0f4ff;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .security-questions h3 {
+            font-size: 16px;
+            margin-bottom: 15px;
+        }
+
+        .security-questions input[type="text"] {
+            margin-top: 8px;
+        }
+
+        #reset-section {
+            margin-top: 30px;
+        }
+
+        #reset-section h3 {
+            margin-bottom: 20px;
+            color: #667eea;
+        }
+
+        .logout-button {
+            margin-top: 20px;
+            background: #dc3545;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 ErrorWise Authentication</h1>
+
+        <div class="tabs">
+                <div class="security-questions">
+                    <h3>Security Questions</h3>
+                    
+                    <div class="form-group">
+                        <label>Question 1 *</label>
+                        <select id="reg-q1" required aria-label="Security Question 1">
+                            <option value="">Select a question...</option>
+                            <option value="What was your childhood nickname?">What was your childhood nickname?</option>
+                            <option value="What is your mother's maiden name?">What is your mother's maiden name?</option>
+                            <option value="What was the name of your first pet?">What was the name of your first pet?</option>
+                        </select>
+                        <input type="text" id="reg-a1" placeholder="Your answer" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Question 2 *</label>
+                        <select id="reg-q2" required aria-label="Security Question 2">
+                            <option value="">Select a question...</option>
+                            <option value="What city were you born in?">What city were you born in?</option>
+                            <option value="What is your favorite movie?">What is your favorite movie?</option>
+                            <option value="What was your first car?">What was your first car?</option>
+                        </select>
+                        <input type="text" id="reg-a2" placeholder="Your answer" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Question 3 *</label>
+                        <select id="reg-q3" required aria-label="Security Question 3">
+                            <option value="">Select a question...</option>
+                            <option value="What is your favorite food?">What is your favorite food?</option>
+                            <option value="What was the name of your elementary school?">What was the name of your elementary school?</option>
+                            <option value="What is your favorite book?">What is your favorite book?</option>
+                        </select>
+                        <input type="text" id="reg-a3" placeholder="Your answer" required>
+                    </div>
+                </div>
+
+                    <div class="form-group">
+                        <label>Question 2 *</label>
+                        <select id="reg-q2" required aria-label="Security Question 2">
+                            <option value="">Select a question...</option>
+                            <option value="What city were you born in?">What city were you born in?</option>
+                            <option value="What is your favorite movie?">What is your favorite movie?</option>
+                            <option value="What was your first car?">What was your first car?</option>
+                        </select>
+                        <input type="text" id="reg-a2" placeholder="Your answer" required style="margin-top: 8px;">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Question 3 *</label>
+                        <select id="reg-q3" required aria-label="Security Question 3">
+                            <option value="">Select a question...</option>
+                            <option value="What is your favorite food?">What is your favorite food?</option>
+                            <option value="What was the name of your elementary school?">What was the name of your elementary school?</option>
+                            <option value="What is your favorite book?">What is your favorite book?</option>
+                        </select>
+                        <input type="text" id="reg-a3" placeholder="Your answer" required style="margin-top: 8px;">
+                    </div>
+                </div>
+
+                <button type="submit">Register</button>
+            </form>
+        </div>
+
+        <!-- Login Form -->
+        <div id="login-section" class="form-section">
+            <div id="reset-section" class="hidden">
+                <h3>Answer Security Questions</h3>
+                <form id="reset-form">
+                    <input type="email" id="login-email" required>
+                </div>
+                <div class="form-group">
+                    <label>Password *</label>
+                    <input type="password" id="login-password" required>
+                </div>
+                <button type="submit">Login</button>
+            </form>
+        </div>
+
+        <!-- Forgot Password Form -->
+        <div id="forgot-section" class="form-section">
+            <form id="forgot-form">
+                <h3>👤 User Profile</h3>
+                <div id="profile-data"></div>
+                <button onclick="logout()" class="logout-button">Logout</button>
+            </div>
+                <button type="submit">Get Security Questions</button>
+            </form>
+
+            <div id="reset-section" class="hidden" style="margin-top: 30px;">
+                <h3 style="margin-bottom: 20px; color: #667eea;">Answer Security Questions</h3>
+                <form id="reset-form">
+                    <div id="security-questions-display"></div>
+                    <div class="form-group">
+                        <label>New Password * (min 8 characters)</label>
+                        <input type="password" id="reset-password" required minlength="8">
+                    </div>
+                    <button type="submit">Reset Password</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- User Profile (shown after login) -->
+        <div id="profile-section" class="hidden">
+            <div class="user-info">
+                <h3>👤 User Profile</h3>
+                <div id="profile-data"></div>
+                <button onclick="logout()" style="margin-top: 20px; background: #dc3545;">Logout</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:3001/api/auth';
+        let currentEmail = '';
+
+        function showTab(tab) {
+            // Hide all sections
+            document.querySelectorAll('.form-section').forEach(s => s.classList.remove('active'));
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+
+            // Show selected section
+            document.getElementById(`${tab}-section`).classList.add('active');
+            event.target.classList.add('active');
+
+            // Clear messages
+            clearMessage();
+        }
+
+        function showMessage(message, type) {
+            const container = document.getElementById('message-container');
+            container.innerHTML = `<div class="message ${type}">${message}</div>`;
+        }
+
+        function clearMessage() {
+            document.getElementById('message-container').innerHTML = '';
+        }
+
+        // Register
+        document.getElementById('register-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            clearMessage();
+
+            const data = {
+                username: document.getElementById('reg-username').value,
+                email: document.getElementById('reg-email').value,
+                password: document.getElementById('reg-password').value,
+                securityQuestion1: document.getElementById('reg-q1').value,
+                securityAnswer1: document.getElementById('reg-a1').value,
+                securityQuestion2: document.getElementById('reg-q2').value,
+                securityAnswer2: document.getElementById('reg-a2').value,
+                securityQuestion3: document.getElementById('reg-q3').value,
+                securityAnswer3: document.getElementById('reg-a3').value
+            };
+
+            try {
+                const response = await fetch(`${API_URL}/register`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify(data)
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    showMessage('✅ Registration successful! You are now logged in.', 'success');
+                    localStorage.setItem('accessToken', result.accessToken);
+                    setTimeout(() => showProfile(result.user), 1500);
+                } else {
+                    showMessage('❌ ' + result.error, 'error');
+                }
+            } catch (error) {
+                showMessage('❌ Network error: ' + error.message, 'error');
+            }
+        });
+
+        // Login
+        document.getElementById('login-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            clearMessage();
+
+            const data = {
+                email: document.getElementById('login-email').value,
+                password: document.getElementById('login-password').value
+            };
+
+            try {
+                const response = await fetch(`${API_URL}/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify(data)
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    showMessage('✅ Login successful!', 'success');
+                    localStorage.setItem('accessToken', result.accessToken);
+                    setTimeout(() => showProfile(result.user), 1500);
+                } else {
+                    showMessage('❌ ' + result.error, 'error');
+                }
+            } catch (error) {
+                showMessage('❌ Network error: ' + error.message, 'error');
+            }
+        });
+
+        // Forgot Password - Get Questions
+        document.getElementById('forgot-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            clearMessage();
+
+            const email = document.getElementById('forgot-email').value;
+            currentEmail = email;
+
+            try {
+                const response = await fetch(`${API_URL}/forgot-password`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    const questionsHtml = `
+                        <div class="form-group">
+                            <label>Question 1: ${result.questions.question1}</label>
+                            <input type="text" id="reset-a1" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Question 2: ${result.questions.question2}</label>
+                            <input type="text" id="reset-a2" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Question 3: ${result.questions.question3}</label>
+                            <input type="text" id="reset-a3" required>
+                        </div>
+                    `;
+                    document.getElementById('security-questions-display').innerHTML = questionsHtml;
+                    document.getElementById('reset-section').classList.remove('hidden');
+                    showMessage('✅ Security questions loaded. Please answer them.', 'success');
+                } else {
+                    showMessage('❌ ' + result.error, 'error');
+                }
+            } catch (error) {
+                showMessage('❌ Network error: ' + error.message, 'error');
+            }
+        });
+
+        // Reset Password
+        document.getElementById('reset-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            clearMessage();
+
+            const data = {
+                email: currentEmail,
+                answer1: document.getElementById('reset-a1').value,
+                answer2: document.getElementById('reset-a2').value,
+                answer3: document.getElementById('reset-a3').value,
+                newPassword: document.getElementById('reset-password').value
+            };
+
+            try {
+                const response = await fetch(`${API_URL}/reset-password`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    showMessage('✅ Password reset successful! You can now login with your new password.', 'success');
+                    setTimeout(() => showTab('login'), 2000);
+                } else {
+                    showMessage('❌ ' + result.error, 'error');
+                }
+            } catch (error) {
+                showMessage('❌ Network error: ' + error.message, 'error');
+            }
+        });
+
+        function showProfile(user) {
+            document.querySelectorAll('.form-section').forEach(s => s.classList.add('hidden'));
+            document.getElementById('profile-section').classList.remove('hidden');
+            
+            const profileData = `
+                <p><strong>ID:</strong> ${user.id}</p>
+                <p><strong>Username:</strong> ${user.username}</p>
+                <p><strong>Email:</strong> ${user.email}</p>
+                <p><strong>Role:</strong> ${user.role}</p>
+                <p><strong>Subscription:</strong> ${user.subscriptionStatus}</p>
+            `;
+            document.getElementById('profile-data').innerHTML = profileData;
+        }
+
+        async function logout() {
+            const token = localStorage.getItem('accessToken');
+            
+            try {
+                await fetch(`${API_URL}/logout`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'include'
+                });
+
+                localStorage.removeItem('accessToken');
+                document.getElementById('profile-section').classList.add('hidden');
+                document.querySelectorAll('.form-section').forEach(s => s.classList.remove('hidden'));
+                showMessage('✅ Logged out successfully!', 'success');
+                showTab('login');
+            } catch (error) {
+                showMessage('❌ Logout error: ' + error.message, 'error');
+            }
+        }
+
+        // Check if user is already logged in
+        window.addEventListener('load', async () => {
+            const token = localStorage.getItem('accessToken');
+            if (token) {
+                try {
+                    const response = await fetch(`${API_URL}/profile`, {
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        },
+                        credentials: 'include'
+                    });
+
+                    const result = await response.json();
+                    if (result.success) {
+                        showProfile(result.user);
+                    }
+                } catch (error) {
+                    console.log('Not logged in or token expired');
+                }
+            }
+        });
+    </script>
+</body>
+</html>

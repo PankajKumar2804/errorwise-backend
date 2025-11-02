@@ -5,6 +5,9 @@ const cors = require('cors');
 const cookieParser = require('cookie-parser');
 const morgan = require('morgan');
 const logger = require('./src/utils/logger');
+const { connectRedis } = require('./src/utils/redisClient');
+const { sessionMiddleware } = require('./src/middleware/session');
+const { rateLimiters } = require('./src/middleware/rateLimiter');
 
 const app = express();
 
@@ -18,6 +21,12 @@ app.use(morgan('combined'));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
+
+// Session middleware (loads user session from Redis)
+app.use(sessionMiddleware);
+
+// General rate limiting (100 requests per minute)
+app.use(rateLimiters.general);
 
 // Request logging
 app.use((req, res, next) => {
@@ -33,32 +42,61 @@ require('./src/models/User');
 require('./src/models/ErrorQuery');
 require('./src/models/Subscription');
 
+// Import associations to set up model relationships
+require('./src/models/associations');
+
 // Import routes
 const authRoutes = require('./src/routes/auth');
+const authEnhancedRoutes = require('./src/routes/authEnhanced');
 const errorRoutes = require('./src/routes/errors');
 const userRoutes = require('./src/routes/users');
 const subscriptionRoutes = require('./src/routes/subscriptions');
 const historyRoutes = require('./src/routes/history');
 const settingsRoutes = require('./src/routes/settings');
-const teamRoutes = require('./src/routes/teams');
-const webhookRoutes = require('./src/routes/webhooks');
+const publicDemoRoutes = require('./src/routes/publicDemo');
+const supportRoutes = require('./src/routes/support');
+// const teamRoutes = require('./src/routes/teams'); // TODO: Add team models first
+// const webhookRoutes = require('./src/routes/webhooks'); // TODO: Add webhook routes
 
 // Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() });
 });
 
-// Mount API routes
-app.use('/api/auth', authRoutes);
-app.use('/api/errors', errorRoutes);
-app.use('/api/users', userRoutes);
-app.use('/api/subscriptions', subscriptionRoutes);
-app.use('/api/history', historyRoutes);
-app.use('/api/settings', settingsRoutes);
-app.use('/api/teams', teamRoutes);
-app.use('/api/webhooks', webhookRoutes);
+// Platform statistics (public endpoint - real-time calculations)
+app.get('/api/stats', async (req, res) => {
+  try {
+    const { calculatePlatformStats, getPlatformCapabilities } = require('./src/config/platformStats');
+    
+    const includeCapabilities = req.query.capabilities === 'true';
+    const stats = await calculatePlatformStats();
+    
+    if (includeCapabilities) {
+      stats.capabilities = getPlatformCapabilities();
+    }
+    
+    res.json(stats);
+  } catch (error) {
+    console.error('Error fetching platform stats:', error);
+    res.status(500).json({ 
+      error: 'Failed to calculate statistics',
+      message: error.message 
+    });
+  }
+});
 
-// 404 handler
+  // Mount API routes
+  app.use('/api/public/demo', publicDemoRoutes); // Public demo - no auth required
+  app.use('/api/auth', authRoutes);
+  app.use('/api/auth', authEnhancedRoutes); // Enhanced auth with tracking
+  app.use('/api/errors', errorRoutes);
+  app.use('/api/users', userRoutes);
+  app.use('/api/subscriptions', subscriptionRoutes);
+  app.use('/api/history', historyRoutes);
+  app.use('/api/settings', settingsRoutes);
+  app.use('/api/support', supportRoutes); // Feedback, Contact, Help Center
+  // app.use('/api/teams', teamRoutes); // TODO: Add team models first
+  // app.use('/api/webhooks', webhookRoutes); // TODO: Add webhook routes// 404 handler
 app.use('*', (req, res) => {
   res.status(404).json({ error: 'Not Found' });
 });
@@ -73,6 +111,10 @@ app.use((err, req, res, next) => {
 // Database connection and server start
 const start = async () => {
   try {
+    // Connect to Redis first
+    await connectRedis();
+    console.log('✅ Redis initialization complete');
+    
     // Test database connection
     await sequelize.authenticate();
     console.log('✅ Database connected successfully');
@@ -85,6 +127,8 @@ const start = async () => {
     const port = process.env.PORT || 5000;
     const server = app.listen(port, '0.0.0.0', () => {
       console.log(`🚀 Server running on port ${port} and listening on all interfaces`);
+      console.log(`📦 Redis: Connected and ready for caching & sessions`);
+      console.log(`🔒 Rate limiting: Active (100 req/min general, 5 req/15min auth)`);
       logger.info(`Server running on port ${port}`);
     });
   } catch (error) {

@@ -15,10 +15,10 @@ const defaultPlans = [
   {
     name: 'Free Plan',
     price: 0.00,
-    billing_interval: 'month', // Monthly plan with daily limits
+    billing_interval: 'month', // Monthly plan with monthly limits
     trial_period_days: 0,
     features: {
-      dailyQueries: 3, // 3 queries per day
+      monthlyQueries: 50, // 50 queries per month
       errorExplanation: true,
       fixSuggestions: false,
       documentationLinks: false,
@@ -27,15 +27,15 @@ const defaultPlans = [
       supportLevel: 'community'
     },
     limits: {
-      maxDailyQueries: 3,
-      maxMonthlyQueries: 93, // ~3 per day
+      maxDailyQueries: -1, // No daily limit
+      maxMonthlyQueries: 50, // 50 per month
       errorCategories: ['excel', 'sql', 'windows', 'python', 'javascript', 'general'],
-      historyRetention: 0, // No history
+      historyRetention: 7, // 7 days history
       teamMembers: 1
     },
     max_users: 1,
     max_team_members: 1,
-    description: 'Perfect for trying out ErrorWise. Get clear explanations for 3 errors per day.',
+    description: 'Perfect for trying out ErrorWise. Get 50 error explanations per month with 7-day history.',
     dodo_plan_id: null, // Free plan doesn't need Dodo integration
     dodo_product_id: null,
     is_active: true

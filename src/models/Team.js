@@ -28,7 +28,7 @@ const Team = sequelize.define('Team', {
   },
   subscription_id: {
     type: DataTypes.UUID,
-    allowNull: false,
+    allowNull: true, // Allow teams without subscriptions for now
     references: {
       model: 'subscriptions',
       key: 'id'

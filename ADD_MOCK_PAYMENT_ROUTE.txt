@@ -1,0 +1,5 @@
+// Add this import at the top with other page imports:
+import MockPaymentPage from './pages/MockPaymentPage';
+
+// Add this route inside your Routes component:
+<Route path="/subscription/mock-payment" element={<MockPaymentPage />} />

@@ -12,7 +12,7 @@ class EmailService {
       // Configure transporter based on environment
       if (process.env.NODE_ENV === 'production') {
         // Production email service (SendGrid, Mailgun, etc.)
-        this.transporter = nodemailer.createTransporter({
+        this.transporter = nodemailer.createTransport({
           service: process.env.EMAIL_SERVICE || 'gmail',
           auth: {
             user: process.env.EMAIL_USER,
@@ -22,7 +22,7 @@ class EmailService {
       } else {
         // Development - use Ethereal for testing
         const testAccount = await nodemailer.createTestAccount();
-        this.transporter = nodemailer.createTransporter({
+        this.transporter = nodemailer.createTransport({
           host: 'smtp.ethereal.email',
           port: 587,
           secure: false,
@@ -87,12 +87,19 @@ class EmailService {
   }
 
   // Password reset email
-  async sendPasswordResetEmail(user, resetToken) {
+  async sendPasswordResetEmail(email, username, resetUrl) {
     const subject = 'Reset Your ErrorWise Password';
-    const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
-    const htmlContent = this.generatePasswordResetEmailHtml(user, resetUrl);
+    const htmlContent = this.generatePasswordResetEmailHtml({ email, username }, resetUrl);
     
-    return await this.sendEmail(user.email, subject, htmlContent);
+    return await this.sendEmail(email, subject, htmlContent);
+  }
+
+  // Password change confirmation email
+  async sendPasswordChangeConfirmation(email, username) {
+    const subject = 'Password Changed Successfully';
+    const htmlContent = this.generatePasswordChangeConfirmationHtml({ email, username });
+    
+    return await this.sendEmail(email, subject, htmlContent);
   }
 
   // Error analysis notification
@@ -118,6 +125,22 @@ class EmailService {
     const htmlContent = this.generateTeamInviteEmailHtml(inviteeEmail, inviterUser, team, inviteUrl);
     
     return await this.sendEmail(inviteeEmail, subject, htmlContent);
+  }
+
+  // Subscription cancellation confirmation
+  async sendCancellationConfirmation(email, username, plan, endDate) {
+    const subject = 'Subscription Cancelled - ErrorWise';
+    const htmlContent = this.generateCancellationEmailHtml({ email, username }, plan, endDate);
+    
+    return await this.sendEmail(email, subject, htmlContent);
+  }
+
+  // Send login OTP
+  async sendLoginOTP(email, username, otp) {
+    const subject = 'Your ErrorWise Login Code';
+    const htmlContent = this.generateLoginOTPHtml(username, otp);
+    
+    return await this.sendEmail(email, subject, htmlContent);
   }
 
   // Email templates
@@ -161,6 +184,28 @@ class EmailService {
         <p><strong>This link will expire in 1 hour.</strong></p>
         <p>If you didn't request this password reset, please ignore this email.</p>
         <p>For security reasons, please don't share this link with anyone.</p>
+        <p>Best regards,<br>The ErrorWise Team</p>
+      </div>
+    `;
+  }
+
+  generatePasswordChangeConfirmationHtml(user) {
+    return `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h1 style="color: #22c55e;">Password Changed Successfully</h1>
+        <p>Hello ${user.username || user.email},</p>
+        <p>Your ErrorWise password has been successfully changed.</p>
+        <div style="background: #f0fdf4; padding: 20px; border-radius: 6px; margin: 20px 0; border-left: 4px solid #22c55e;">
+          <p><strong>✅ Password Updated:</strong> ${new Date().toLocaleString()}</p>
+          <p>If you didn't make this change, please contact our support team immediately.</p>
+        </div>
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${process.env.FRONTEND_URL}/login" 
+             style="background: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px;">
+            Login to Your Account
+          </a>
+        </div>
+        <p>Your account security is important to us. If you have any concerns, please don't hesitate to reach out.</p>
         <p>Best regards,<br>The ErrorWise Team</p>
       </div>
     `;
@@ -233,6 +278,71 @@ class EmailService {
         </div>
         <p><em>This invitation will expire in 7 days.</em></p>
         <p>If you don't want to join this team, you can simply ignore this email.</p>
+        <p>Best regards,<br>The ErrorWise Team</p>
+      </div>
+    `;
+  }
+
+  generateCancellationEmailHtml(user, plan, endDate) {
+    const formattedEndDate = endDate ? new Date(endDate).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    }) : 'the end of your billing period';
+
+    return `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h1 style="color: #ff9800;">Subscription Cancelled</h1>
+        <p>Hello ${user.username || user.email},</p>
+        <p>We've received your request to cancel your ErrorWise <strong>${plan}</strong> subscription.</p>
+        <div style="background: #fff3cd; padding: 20px; border-radius: 6px; margin: 20px 0; border-left: 4px solid #ffc107;">
+          <h3>📅 What Happens Next:</h3>
+          <ul>
+            <li><strong>Until ${formattedEndDate}:</strong> Your ${plan} features remain active</li>
+            <li><strong>After ${formattedEndDate}:</strong> You'll be switched to the Free plan</li>
+            <li><strong>Your data:</strong> All your history and settings will be preserved</li>
+          </ul>
+        </div>
+        <div style="background: #f3f4f6; padding: 20px; border-radius: 6px; margin: 20px 0;">
+          <h3>💡 We'd Love Your Feedback:</h3>
+          <p>Help us improve! What made you cancel? Reply to this email to let us know.</p>
+        </div>
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${process.env.FRONTEND_URL}/pricing" 
+             style="background: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px;">
+            Reactivate Subscription
+          </a>
+        </div>
+        <p>You can always reactivate your subscription anytime from your account settings.</p>
+        <p>We hope to see you again!<br>The ErrorWise Team</p>
+        <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
+        <p style="text-align: center; color: #666; font-size: 12px;">
+          © ${new Date().getFullYear()} ErrorWise. All rights reserved.
+        </p>
+      </div>
+    `;
+  }
+
+  // Generate login OTP email HTML
+  generateLoginOTPHtml(username, otp) {
+    return `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h1 style="color: #2563eb;">Login Verification</h1>
+        <p>Hello ${username},</p>
+        <p>You requested to login to your ErrorWise account. Here is your verification code:</p>
+        <div style="background: #f3f4f6; padding: 30px; border-radius: 6px; margin: 20px 0; text-align: center;">
+          <div style="font-size: 36px; font-weight: bold; color: #2563eb; letter-spacing: 8px; font-family: 'Courier New', monospace;">
+            ${otp}
+          </div>
+        </div>
+        <div style="background: #fff3cd; padding: 15px; border-radius: 6px; margin: 20px 0; border-left: 4px solid #ffc107;">
+          <p><strong>⚠️ Security Notice:</strong></p>
+          <ul style="margin: 10px 0;">
+            <li>This code will expire in 10 minutes</li>
+            <li>Never share this code with anyone</li>
+            <li>If you didn't request this, please secure your account</li>
+          </ul>
+        </div>
         <p>Best regards,<br>The ErrorWise Team</p>
       </div>
     `;

@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quick Frontend Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background: #f0f0f0;
+        }
+        .test-box {
+            background: white;
+            padding: 20px;
+            margin: 10px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        button {
+            background: #2563eb;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #1d4ed8;
+        }
+        .result {
+            margin-top: 10px;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 4px;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔍 Frontend Debug Tool</h1>
+    
+    <div class="test-box">
+        <h2>Test 1: Check if you're logged in</h2>
+        <button onclick="checkAuth()">Check Auth Status</button>
+        <div id="auth-result" class="result"></div>
+    </div>
+
+    <div class="test-box">
+        <h2>Test 2: Load Frontend in iFrame</h2>
+        <button onclick="loadFrontend()">Load Frontend</button>
+        <button onclick="loadSubscriptionPage()">Load Subscription Page</button>
+        <div id="iframe-result" class="result"></div>
+        <iframe id="frontend-frame" style="width: 100%; height: 500px; border: 1px solid #ddd; margin-top: 10px; display: none;"></iframe>
+    </div>
+
+    <div class="test-box">
+        <h2>Test 3: Direct API Test</h2>
+        <button onclick="testPlansAPI()">Test Plans API</button>
+        <div id="api-result" class="result"></div>
+    </div>
+
+    <script>
+        function checkAuth() {
+            const result = document.getElementById('auth-result');
+            try {
+                const authStore = localStorage.getItem('auth-storage');
+                const token = localStorage.getItem('token');
+                const user = localStorage.getItem('user');
+                
+                result.innerHTML = 'Auth Storage: ' + (authStore || 'Not found') + '\n\n';
+                result.innerHTML += 'Token: ' + (token || 'Not found') + '\n\n';
+                result.innerHTML += 'User: ' + (user || 'Not found') + '\n\n';
+                
+                if (authStore) {
+                    try {
+                        const parsed = JSON.parse(authStore);
+                        result.innerHTML += '\nParsed Auth Store:\n' + JSON.stringify(parsed, null, 2);
+                    } catch (e) {
+                        result.innerHTML += '\nError parsing auth store: ' + e.message;
+                    }
+                }
+                
+                result.innerHTML += '\n\n✅ Check complete';
+            } catch (error) {
+                result.innerHTML = '❌ Error: ' + error.message;
+            }
+        }
+
+        function loadFrontend() {
+            const frame = document.getElementById('frontend-frame');
+            const result = document.getElementById('iframe-result');
+            
+            frame.style.display = 'block';
+            frame.src = 'http://localhost:3000/';
+            result.innerHTML = '✅ Loading frontend at http://localhost:3000/';
+            
+            setTimeout(() => {
+                try {
+                    const doc = frame.contentDocument || frame.contentWindow.document;
+                    const root = doc.getElementById('root');
+                    if (root) {
+                        result.innerHTML += '\n✅ Root element found';
+                        result.innerHTML += '\n📝 Root innerHTML length: ' + root.innerHTML.length;
+                        if (root.innerHTML.length === 0) {
+                            result.innerHTML += '\n❌ ROOT IS EMPTY - React failed to mount!';
+                        } else {
+                            result.innerHTML += '\n✅ Root has content - React is working';
+                        }
+                    } else {
+                        result.innerHTML += '\n❌ Root element not found';
+                    }
+                } catch (e) {
+                    result.innerHTML += '\n⚠️  Cannot access iframe: ' + e.message;
+                }
+            }, 2000);
+        }
+
+        function loadSubscriptionPage() {
+            const frame = document.getElementById('frontend-frame');
+            const result = document.getElementById('iframe-result');
+            
+            frame.style.display = 'block';
+            frame.src = 'http://localhost:3000/subscription';
+            result.innerHTML = '✅ Loading subscription page at http://localhost:3000/subscription';
+            
+            setTimeout(() => {
+                try {
+                    const doc = frame.contentDocument || frame.contentWindow.document;
+                    const root = doc.getElementById('root');
+                    if (root) {
+                        result.innerHTML += '\n✅ Root element found';
+                        result.innerHTML += '\n📝 Root innerHTML length: ' + root.innerHTML.length;
+                        result.innerHTML += '\n📝 First 200 chars: ' + root.innerHTML.substring(0, 200);
+                    }
+                } catch (e) {
+                    result.innerHTML += '\n⚠️  Cannot access iframe: ' + e.message;
+                }
+            }, 2000);
+        }
+
+        async function testPlansAPI() {
+            const result = document.getElementById('api-result');
+            result.innerHTML = 'Testing API...';
+            
+            try {
+                const response = await fetch('http://localhost:3001/api/subscriptions/plans');
+                const data = await response.json();
+                
+                result.innerHTML = '✅ API Response:\n\n';
+                result.innerHTML += JSON.stringify(data, null, 2);
+            } catch (error) {
+                result.innerHTML = '❌ API Error: ' + error.message;
+            }
+        }
+
+        // Auto-run auth check
+        window.addEventListener('load', () => {
+            checkAuth();
+        });
+    </script>
+</body>
+</html>

@@ -24,6 +24,27 @@ class DodoPaymentService {
     try {
       const { userId, planId, planName, amount, currency = 'USD', successUrl, cancelUrl } = subscriptionData;
       
+      // Check if Dodo credentials are configured
+      if (!this.apiKey || !this.secretKey) {
+        console.log('⚠️  Dodo credentials not configured. Using mock payment flow for development.');
+        
+        // For development: Create mock payment session
+        const mockSessionId = `mock_session_${Date.now()}_${userId}`;
+        const mockSessionUrl = `${successUrl.split('/subscription')[0]}/subscription/mock-payment?sessionId=${mockSessionId}&planId=${planId}&userId=${userId}`;
+        
+        return {
+          success: true,
+          sessionId: mockSessionId,
+          sessionUrl: mockSessionUrl,
+          data: {
+            id: mockSessionId,
+            url: mockSessionUrl,
+            mode: 'mock',
+            metadata: { userId, planId, planName }
+          }
+        };
+      }
+      
       const timestamp = Math.floor(Date.now() / 1000).toString();
       const path = '/payments/sessions';
       const body = JSON.stringify({

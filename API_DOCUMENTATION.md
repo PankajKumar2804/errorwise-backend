@@ -1,175 +1,1303 @@
-# ErrorWise Backend API Documentation
+# 📖 ErrorWise Backend - API Documentation
+
+> **Complete API Reference** - All endpoints, request/response formats, authentication, and usage examples.
+
+---
+
+## 📋 Table of Contents
+
+1. [Overview](#overview)
+2. [Base URL](#base-url)
+3. [Authentication](#authentication)
+4. [Rate Limiting](#rate-limiting)
+5. [Error Handling](#error-handling)
+6. [Authentication Endpoints](#authentication-endpoints)
+7. [User Endpoints](#user-endpoints)
+8. [Error Analysis Endpoints](#error-analysis-endpoints)
+9. [Subscription Endpoints](#subscription-endpoints)
+10. [Session Management](#session-management)
+11. [Platform Statistics](#platform-statistics)
+
+---
 
 ## Overview
-ErrorWise is an AI-powered error analysis platform that helps developers understand, solve, and learn from coding errors. This document outlines all available API endpoints.
+
+ErrorWise is an AI-powered error analysis platform that helps developers understand, solve, and learn from coding errors. This document outlines all available API endpoints with complete request/response examples.
+
+### Key Features
+- 🔐 JWT-based authentication with Redis sessions
+- ⚡ Tier-based rate limiting
+- 🤖 AI-powered error analysis (OpenAI GPT-4, Google Gemini)
+- 💳 Multi-tier subscriptions (Free, Pro, Team)
+- 📊 Usage tracking and analytics
+
+---
 
 ## Base URL
+
+**Development:**
 ```
-http://localhost:5000/api
+http://localhost:3001/api
 ```
 
+**Production:**
+```
+https://api.errorwise.com/api
+```
+
+---
+
 ## Authentication
-Most endpoints require authentication using JWT tokens passed as cookies. The authentication system supports:
-- JWT access tokens (15 minutes)
-- Refresh tokens (7 days)
-- Cookie-based token management
+
+### Token-Based Authentication
+
+ErrorWise uses JWT (JSON Web Tokens) with Redis-backed sessions for authentication.
+
+**Token Types:**
+- **Access Token**: Short-lived (15 minutes), sent in `Authorization` header
+- **Refresh Token**: Long-lived (7 days), stored in Redis session
+
+**Authorization Header Format:**
+```
+Authorization: Bearer <access_token>
+```
+
+**Session Storage:**
+- Sessions stored in Redis with 7-day TTL
+- Automatic expiry and cleanup
+- Multi-device session support
+
+### Security Question
+
+Password recovery uses **1 security question** (not 3):
+- Question and answer set during registration
+- Answer is bcrypt-hashed before storage
+- Used for password reset verification
+
+---
+
+## Rate Limiting
+
+### Rate Limit Headers
+
+All responses include rate limit information:
+
+```http
+X-RateLimit-Limit: 100
+X-RateLimit-Remaining: 95
+X-RateLimit-Reset: 1698412800
+```
+
+### Tier-Based Limits
+
+| Tier | General Endpoints | Auth Endpoints | Error Analysis |
+|------|------------------|----------------|----------------|
+| **Free** | 10 req/min | 5 req/15min | 10 queries/month |
+| **Pro** | 50 req/min | 5 req/15min | 500 queries/month |
+| **Team** | 200 req/min | 5 req/15min | 2000 queries/month |
+
+### Rate Limit Exceeded Response
+
+```json
+{
+  "error": "Rate limit exceeded",
+  "retryAfter": 60,
+  "limit": 100,
+  "current": 100
+}
+```
+
+---
+
+## Error Handling
+
+### Standard Error Response
+
+All errors follow this format:
+
+```json
+{
+  "error": "Error message",
+  "details": "Additional error details (optional)",
+  "code": "ERROR_CODE",
+  "timestamp": "2025-10-27T10:30:00.000Z"
+}
+```
+
+### HTTP Status Codes
+
+| Code | Meaning | Description |
+|------|---------|-------------|
+| **200** | OK | Request successful |
+| **201** | Created | Resource created successfully |
+| **400** | Bad Request | Invalid request parameters |
+| **401** | Unauthorized | Authentication required or failed |
+| **403** | Forbidden | Insufficient permissions |
+| **404** | Not Found | Resource not found |
+| **429** | Too Many Requests | Rate limit exceeded |
+| **500** | Internal Server Error | Server-side error |
 
 ---
 
 ## Authentication Endpoints
 
-### POST /auth/register
-Register a new user account.
+### POST `/api/auth/register`
+
+Register a new user account with 1 security question.
+
+**Authentication Required:** No
+
+**Rate Limit:** 5 requests per 15 minutes
 
 **Request Body:**
 ```json
 {
-  "username": "string (required, 3-50 characters)",
-  "email": "string (required, valid email)",
-  "password": "string (required, min 6 characters)"
+  "username": "johndoe",
+  "email": "john@example.com",
+  "password": "SecurePass123!",
+  "securityQuestion": "What is your favorite color?",
+  "securityAnswer": "Blue"
 }
 ```
 
-**Response (201):**
+**Field Requirements:**
+- `username`: 3-50 characters, alphanumeric + underscore
+- `email`: Valid email format
+- `password`: Minimum 6 characters
+- `securityQuestion`: Required for password recovery
+- `securityAnswer`: Case-insensitive, will be hashed
+
+**Response (201 Created):**
 ```json
 {
   "message": "User registered successfully",
   "user": {
-    "id": "uuid",
-    "username": "string",
-    "email": "string"
+    "id": "123e4567-e89b-12d3-a456-426614174000",
+    "username": "johndoe",
+    "email": "john@example.com",
+    "subscriptionTier": "Free",
+    "createdAt": "2025-10-27T10:30:00.000Z"
+  },
+  "tokens": {
+    "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "expiresIn": 900
   }
 }
 ```
 
-### POST /auth/login
-Authenticate user and receive access tokens.
+**Error Responses:**
 
-**Request Body:**
 ```json
+// 400 - Email already exists
 {
-  "email": "string (required)",
-  "password": "string (required)"
+  "error": "Email already registered",
+  "code": "EMAIL_EXISTS"
 }
-```
 
-**Response (200):**
-```json
+// 400 - Validation error
 {
-  "message": "Login successful",
-  "user": {
-    "id": "uuid",
-    "username": "string",
-    "email": "string"
-  }
+  "error": "Username must be 3-50 characters",
+  "code": "VALIDATION_ERROR"
 }
-```
 
-### POST /auth/logout
-Logout user and clear authentication cookies.
-
-**Response (200):**
-```json
+// 429 - Rate limit exceeded
 {
-  "message": "Logged out successfully"
-}
-```
-
-### POST /auth/refresh
-Refresh access token using refresh token.
-
-**Response (200):**
-```json
-{
-  "message": "Token refreshed successfully"
+  "error": "Too many registration attempts",
+  "retryAfter": 900
 }
 ```
 
 ---
 
-## Error Analysis Endpoints
+### POST `/api/auth/login`
 
-### POST /errors/analyze
-Analyze an error using AI services.
+Authenticate user and receive access tokens. Creates a Redis session.
+
+**Authentication Required:** No
+
+**Rate Limit:** 5 requests per 15 minutes
 
 **Request Body:**
 ```json
 {
-  "errorMessage": "string (required)",
-  "codeSnippet": "string (optional)",
-  "language": "string (optional, auto-detected if not provided)",
-  "aiProvider": "string (optional: 'openai', 'gemini', 'auto')"
+  "email": "john@example.com",
+  "password": "SecurePass123!"
 }
 ```
 
-**Response (200):**
+**Response (200 OK):**
 ```json
 {
-  "id": "uuid",
-  "analysis": {
-    "errorCategory": "string",
-    "explanation": "string",
-    "solution": "string",
-    "codeExample": "string",
-    "confidence": "number (0-100)",
-    "language": "string",
-    "aiProvider": "string"
+  "message": "Login successful",
+  "user": {
+    "id": "123e4567-e89b-12d3-a456-426614174000",
+    "username": "johndoe",
+    "email": "john@example.com",
+    "subscriptionTier": "Pro",
+    "lastLoginAt": "2025-10-27T10:30:00.000Z"
   },
-  "responseTime": "number (ms)",
-  "createdAt": "timestamp"
+  "tokens": {
+    "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "expiresIn": 900
+  },
+  "session": {
+    "sessionId": "sess_abc123xyz789",
+    "expiresAt": "2025-11-03T10:30:00.000Z"
+  }
 }
 ```
 
-### GET /errors/categories
-Get available error categories.
+**Error Responses:**
 
-**Response (200):**
+```json
+// 401 - Invalid credentials
+{
+  "error": "Invalid email or password",
+  "code": "INVALID_CREDENTIALS"
+}
+
+// 403 - Account locked (abuse detection)
+{
+  "error": "Account temporarily locked due to multiple failed attempts",
+  "code": "ACCOUNT_LOCKED",
+  "retryAfter": 1800
+}
+```
+
+---
+
+### POST `/api/auth/logout`
+
+Logout user and destroy Redis session.
+
+**Authentication Required:** Yes
+
+**Rate Limit:** 100 requests per minute
+
+**Headers:**
+```http
+Authorization: Bearer <access_token>
+```
+
+**Response (200 OK):**
 ```json
 {
-  "categories": [
-    "syntax-error",
-    "runtime-error",
-    "logic-error",
-    "scope-error",
-    "network-error",
-    "permission-error",
-    "performance-issue",
-    "other"
+  "message": "Logged out successfully",
+  "sessionDestroyed": true
+}
+```
+
+---
+
+### POST `/api/auth/refresh`
+
+Refresh access token using refresh token. Updates Redis session.
+
+**Authentication Required:** No (requires valid refresh token)
+
+**Rate Limit:** 100 requests per minute
+
+**Request Body:**
+```json
+{
+  "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "message": "Token refreshed successfully",
+  "tokens": {
+    "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "expiresIn": 900
+  }
+}
+```
+
+**Error Responses:**
+
+```json
+// 401 - Invalid or expired refresh token
+{
+  "error": "Invalid refresh token",
+  "code": "INVALID_REFRESH_TOKEN"
+}
+
+// 401 - Session expired
+{
+  "error": "Session expired, please login again",
+  "code": "SESSION_EXPIRED"
+}
+```
+
+---
+
+### POST `/api/auth/forgot-password`
+
+Request password reset with security question.
+
+**Authentication Required:** No
+
+**Rate Limit:** 5 requests per 15 minutes
+
+**Request Body:**
+```json
+{
+  "email": "john@example.com"
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "message": "Security question sent",
+  "question": "What is your favorite color?",
+  "resetToken": "reset_abc123xyz789"
+}
+```
+
+**Note:** `resetToken` is used to verify the security answer in the next step.
+
+---
+
+### POST `/api/auth/reset-password`
+
+Reset password after answering security question.
+
+**Authentication Required:** No
+
+**Rate Limit:** 5 requests per 15 minutes
+
+**Request Body:**
+```json
+{
+  "resetToken": "reset_abc123xyz789",
+  "securityAnswer": "Blue",
+  "newPassword": "NewSecurePass123!"
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "message": "Password reset successfully",
+  "redirectTo": "/login"
+}
+```
+
+**Error Responses:**
+
+```json
+// 400 - Incorrect security answer
+{
+  "error": "Incorrect security answer",
+  "code": "INVALID_SECURITY_ANSWER",
+  "attemptsRemaining": 2
+}
+
+// 400 - Token expired
+{
+  "error": "Reset token expired",
+  "code": "TOKEN_EXPIRED"
+}
+```
+
+---
+
+## User Endpoints
+
+### GET `/api/users/profile`
+
+Get current user profile information.
+
+**Authentication Required:** Yes
+
+**Rate Limit:** 100 requests per minute
+
+**Headers:**
+```http
+Authorization: Bearer <access_token>
+```
+
+**Response (200 OK):**
+```json
+{
+  "user": {
+    "id": "123e4567-e89b-12d3-a456-426614174000",
+    "username": "johndoe",
+    "email": "john@example.com",
+    "subscriptionTier": "Pro",
+    "subscriptionStatus": "active",
+    "queriesUsed": 127,
+    "queriesLimit": 500,
+    "createdAt": "2025-10-01T10:30:00.000Z",
+    "lastLoginAt": "2025-10-27T10:30:00.000Z"
+  }
+}
+```
+
+---
+
+### PUT `/api/users/profile`
+
+Update user profile information.
+
+**Authentication Required:** Yes
+
+**Rate Limit:** 100 requests per minute
+
+**Request Body:**
+```json
+{
+  "username": "johndoe_updated",
+  "email": "newemail@example.com"
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "message": "Profile updated successfully",
+  "user": {
+    "id": "123e4567-e89b-12d3-a456-426614174000",
+    "username": "johndoe_updated",
+    "email": "newemail@example.com"
+  }
+}
+```
+
+---
+
+### GET `/api/users/sessions`
+
+Get all active sessions for the current user.
+
+**Authentication Required:** Yes
+
+**Rate Limit:** 100 requests per minute
+
+**Response (200 OK):**
+```json
+{
+  "sessions": [
+    {
+      "sessionId": "sess_abc123",
+      "device": "Chrome on Windows",
+      "ipAddress": "192.168.1.100",
+      "lastActive": "2025-10-27T10:30:00.000Z",
+      "createdAt": "2025-10-20T10:30:00.000Z",
+      "expiresAt": "2025-10-27T10:30:00.000Z",
+      "current": true
+    },
+    {
+      "sessionId": "sess_xyz789",
+      "device": "Safari on iPhone",
+      "ipAddress": "192.168.1.101",
+      "lastActive": "2025-10-26T15:20:00.000Z",
+      "createdAt": "2025-10-19T08:00:00.000Z",
+      "expiresAt": "2025-10-26T08:00:00.000Z",
+      "current": false
+    }
+  ],
+  "total": 2
+}
+```
+
+---
+
+### DELETE `/api/users/sessions/:sessionId`
+
+Revoke a specific session (logout from specific device).
+
+**Authentication Required:** Yes
+
+**Rate Limit:** 100 requests per minute
+
+**URL Parameters:**
+- `sessionId`: Session identifier to revoke
+
+**Response (200 OK):**
+```json
+{
+  "message": "Session revoked successfully",
+  "sessionId": "sess_xyz789"
+}
+```
+
+---
+
+### DELETE `/api/users/sessions/all`
+
+Revoke all sessions except current one.
+
+**Authentication Required:** Yes
+
+**Rate Limit:** 100 requests per minute
+
+**Response (200 OK):**
+```json
+{
+  "message": "All other sessions revoked",
+  "sessionsRevoked": 3
+}
+```
+
+---
+
+## Session Management
+
+### Redis Session Storage
+
+All sessions are stored in Redis with the following structure:
+
+**Session Key Format:**
+```
+session:<accessToken>
+```
+
+**Session Data:**
+```json
+{
+  "userId": "123e4567-e89b-12d3-a456-426614174000",
+  "username": "johndoe",
+  "email": "john@example.com",
+  "subscriptionTier": "Pro",
+  "device": "Chrome on Windows",
+  "ipAddress": "192.168.1.100",
+  "createdAt": "2025-10-20T10:30:00.000Z",
+  "lastActive": "2025-10-27T10:30:00.000Z"
+}
+```
+
+**TTL:** 7 days (604800 seconds)
+
+### Session Middleware
+
+The session middleware automatically:
+- Validates access token from Authorization header
+- Retrieves session data from Redis
+- Updates `lastActive` timestamp
+- Attaches user data to `req.user`
+- Returns 401 if session expired or invalid
+
+---
+
+## Error Analysis Endpoints
+
+### POST `/api/errors/analyze`
+
+Analyze an error using AI services (OpenAI GPT-4 or Google Gemini).
+
+**Authentication Required:** Yes
+
+**Rate Limit:** Tier-based (Free: 10/month, Pro: 500/month, Team: 2000/month)
+
+**Request Body:**
+```json
+{
+  "errorMessage": "TypeError: Cannot read property 'map' of undefined",
+  "codeSnippet": "const results = data.map(item => item.value);",
+  "language": "javascript",
+  "context": "React component fetching API data",
+  "aiProvider": "auto"
+}
+```
+
+**Field Requirements:**
+- `errorMessage`: Required, the error message to analyze
+- `codeSnippet`: Optional, relevant code context
+- `language`: Optional, auto-detected if not provided
+- `context`: Optional, additional context about the error
+- `aiProvider`: Optional (`openai`, `gemini`, `auto`). Defaults to tier-based selection
+
+**Response (200 OK):**
+```json
+{
+  "id": "123e4567-e89b-12d3-a456-426614174000",
+  "analysis": {
+    "errorCategory": "TypeError",
+    "explanation": "This error occurs because the 'data' variable is undefined when you try to call the .map() method on it...",
+    "solution": "Add a null/undefined check before calling .map()...",
+    "codeExample": "const results = data?.map(item => item.value) || [];",
+    "bestPractices": [
+      "Always validate data before using array methods",
+      "Use optional chaining (?.) for safer property access",
+      "Provide default values for potentially undefined data"
+    ],
+    "confidence": 95,
+    "language": "javascript",
+    "aiProvider": "openai-gpt4"
+  },
+  "usage": {
+    "queriesUsed": 128,
+    "queriesLimit": 500,
+    "resetDate": "2025-11-01T00:00:00.000Z"
+  },
+  "responseTime": 1234,
+  "createdAt": "2025-10-27T10:30:00.000Z"
+}
+```
+
+**Error Responses:**
+
+```json
+// 403 - Query limit exceeded
+{
+  "error": "Monthly query limit exceeded",
+  "code": "QUERY_LIMIT_EXCEEDED",
+  "usage": {
+    "queriesUsed": 10,
+    "queriesLimit": 10,
+    "resetDate": "2025-11-01T00:00:00.000Z"
+  },
+  "upgradeUrl": "/subscriptions/plans"
+}
+
+// 400 - Invalid request
+{
+  "error": "Error message is required",
+  "code": "VALIDATION_ERROR"
+}
+```
+
+---
+
+### GET `/api/errors/history`
+
+Get error analysis history for current user.
+
+**Authentication Required:** Yes
+
+**Rate Limit:** 100 requests per minute
+
+**Query Parameters:**
+- `page`: Page number (default: 1)
+- `limit`: Results per page (default: 20, max: 100)
+- `language`: Filter by programming language
+- `category`: Filter by error category
+
+**Request:**
+```http
+GET /api/errors/history?page=1&limit=20&language=javascript
+```
+
+**Response (200 OK):**
+```json
+{
+  "errors": [
+    {
+      "id": "123e4567-e89b-12d3-a456-426614174000",
+      "errorMessage": "TypeError: Cannot read property 'map' of undefined",
+      "language": "javascript",
+      "errorCategory": "TypeError",
+      "solved": true,
+      "createdAt": "2025-10-27T10:30:00.000Z"
+    }
+  ],
+  "pagination": {
+    "currentPage": 1,
+    "totalPages": 5,
+    "totalResults": 87,
+    "limit": 20
+  }
+}
+```
+
+---
+
+### GET `/api/errors/:id`
+
+Get specific error analysis by ID.
+
+**Authentication Required:** Yes
+
+**Rate Limit:** 100 requests per minute
+
+**URL Parameters:**
+- `id`: Error query UUID
+
+**Response (200 OK):**
+```json
+{
+  "id": "123e4567-e89b-12d3-a456-426614174000",
+  "errorMessage": "TypeError: Cannot read property 'map' of undefined",
+  "codeSnippet": "const results = data.map(item => item.value);",
+  "language": "javascript",
+  "analysis": {
+    "errorCategory": "TypeError",
+    "explanation": "...",
+    "solution": "...",
+    "codeExample": "...",
+    "confidence": 95
+  },
+  "createdAt": "2025-10-27T10:30:00.000Z"
+}
+```
+
+---
+
+### DELETE `/api/errors/:id`
+
+Delete a specific error query from history.
+
+**Authentication Required:** Yes
+
+**Rate Limit:** 100 requests per minute
+
+**Response (200 OK):**
+```json
+{
+  "message": "Error query deleted successfully",
+  "id": "123e4567-e89b-12d3-a456-426614174000"
+}
+```
+
+## Subscription Endpoints
+
+### GET `/api/subscriptions/plans`
+
+Get all available subscription plans with features and pricing.
+
+**Authentication Required:** No (public endpoint)
+
+**Rate Limit:** 100 requests per minute
+
+**Response (200 OK):**
+```json
+{
+  "plans": [
+    {
+      "tier": "Free",
+      "name": "Free Tier",
+      "price": 0,
+      "currency": "USD",
+      "billing": "monthly",
+      "features": {
+        "queriesPerMonth": 10,
+        "aiModel": "GPT-3.5 Turbo",
+        "contextLength": 1000,
+        "teamMembers": 1,
+        "rateLimit": "10 requests/minute",
+        "prioritySupport": false,
+        "advancedAnalytics": false
+      }
+    },
+    {
+      "tier": "Pro",
+      "name": "Pro Plan",
+      "price": 19.99,
+      "currency": "USD",
+      "billing": "monthly",
+      "popular": true,
+      "features": {
+        "queriesPerMonth": 500,
+        "aiModel": "GPT-4",
+        "contextLength": 5000,
+        "teamMembers": 1,
+        "rateLimit": "50 requests/minute",
+        "prioritySupport": true,
+        "advancedAnalytics": true
+      }
+    },
+    {
+      "tier": "Team",
+      "name": "Team Plan",
+      "price": 49.99,
+      "currency": "USD",
+      "billing": "monthly",
+      "features": {
+        "queriesPerMonth": 2000,
+        "aiModel": "GPT-4 + Gemini",
+        "contextLength": 10000,
+        "teamMembers": 10,
+        "rateLimit": "200 requests/minute",
+        "prioritySupport": true,
+        "advancedAnalytics": true,
+        "teamCollaboration": true
+      }
+    }
   ]
 }
 ```
 
 ---
 
-## User Management Endpoints
+### GET `/api/subscriptions/current`
 
-### GET /users/profile
-Get current user profile and statistics.
+Get current user's subscription details.
 
-**Response (200):**
+**Authentication Required:** Yes
+
+**Rate Limit:** 100 requests per minute
+
+**Response (200 OK):**
 ```json
 {
-  "user": {
-    "id": "uuid",
-    "username": "string",
-    "email": "string",
-    "memberSince": "timestamp"
+  "subscription": {
+    "tier": "Pro",
+    "status": "active",
+    "startDate": "2025-10-01T00:00:00.000Z",
+    "renewalDate": "2025-11-01T00:00:00.000Z",
+    "cancelAtPeriodEnd": false
   },
-  "stats": {
-    "totalQueries": "number",
-    "thisMonthQueries": "number",
-    "subscriptionTier": "string"
+  "usage": {
+    "queriesUsed": 127,
+    "queriesLimit": 500,
+    "resetDate": "2025-11-01T00:00:00.000Z",
+    "percentageUsed": 25.4
+  },
+  "payment": {
+    "amount": 19.99,
+    "currency": "USD",
+    "nextBillingDate": "2025-11-01T00:00:00.000Z",
+    "paymentMethod": "•••• 4242"
   }
 }
 ```
 
-### PUT /users/profile
-Update user profile information.
+---
+
+### POST `/api/subscriptions/upgrade`
+
+Upgrade subscription to a higher tier.
+
+**Authentication Required:** Yes
+
+**Rate Limit:** 100 requests per minute
 
 **Request Body:**
 ```json
 {
-  "username": "string (optional)",
+  "targetTier": "Pro",
+  "paymentMethod": {
+    "type": "card",
+    "token": "pm_abc123xyz789"
+  }
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "message": "Subscription upgraded successfully",
+  "subscription": {
+    "tier": "Pro",
+    "status": "active",
+    "startDate": "2025-10-27T10:30:00.000Z",
+    "renewalDate": "2025-11-27T10:30:00.000Z"
+  },
+  "payment": {
+    "transactionId": "txn_abc123",
+    "amount": 19.99,
+    "currency": "USD",
+    "status": "succeeded"
+  },
+  "redirectUrl": "/dashboard"
+}
+```
+
+**Error Responses:**
+
+```json
+// 400 - Already on this tier
+{
+  "error": "Already subscribed to Pro tier",
+  "code": "ALREADY_SUBSCRIBED"
+}
+
+// 402 - Payment failed
+{
+  "error": "Payment processing failed",
+  "code": "PAYMENT_FAILED",
+  "details": "Insufficient funds"
+}
+
+// 400 - Cannot downgrade via this endpoint
+{
+  "error": "Use /subscriptions/downgrade for tier downgrades",
+  "code": "INVALID_OPERATION"
+}
+```
+
+---
+
+### POST `/api/subscriptions/downgrade`
+
+Downgrade subscription to a lower tier (effective at period end).
+
+**Authentication Required:** Yes
+
+**Rate Limit:** 100 requests per minute
+
+**Request Body:**
+```json
+{
+  "targetTier": "Free",
+  "reason": "Not using enough queries"
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "message": "Subscription will be downgraded at period end",
+  "currentSubscription": {
+    "tier": "Pro",
+    "status": "active",
+    "validUntil": "2025-11-01T00:00:00.000Z"
+  },
+  "futureSubscription": {
+    "tier": "Free",
+    "effectiveDate": "2025-11-01T00:00:00.000Z"
+  }
+}
+```
+
+---
+
+### POST `/api/subscriptions/cancel`
+
+Cancel current subscription (effective at period end).
+
+**Authentication Required:** Yes
+
+**Rate Limit:** 100 requests per minute
+
+**Request Body:**
+```json
+{
+  "reason": "No longer need the service",
+  "feedback": "Great service, but switching to another tool"
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "message": "Subscription cancelled successfully",
+  "subscription": {
+    "tier": "Pro",
+    "status": "cancelled",
+    "validUntil": "2025-11-01T00:00:00.000Z",
+    "willDowngradeTo": "Free"
+  },
+  "refund": null
+}
+```
+
+---
+
+### GET `/api/subscriptions/usage`
+
+Get detailed usage statistics for current billing period.
+
+**Authentication Required:** Yes
+
+**Rate Limit:** 100 requests per minute
+
+**Response (200 OK):**
+```json
+{
+  "period": {
+    "start": "2025-10-01T00:00:00.000Z",
+    "end": "2025-11-01T00:00:00.000Z",
+    "daysRemaining": 4
+  },
+  "queries": {
+    "used": 127,
+    "limit": 500,
+    "percentageUsed": 25.4,
+    "remaining": 373
+  },
+  "aiProviders": {
+    "openai": 98,
+    "gemini": 29
+  },
+  "languages": {
+    "javascript": 45,
+    "python": 38,
+    "java": 24,
+    "other": 20
+  },
+  "successRate": 94.5,
+  "averageResponseTime": 1234
+}
+```
+
+---
+
+### GET `/api/subscriptions/invoices`
+
+Get billing history and invoices.
+
+**Authentication Required:** Yes
+
+**Rate Limit:** 100 requests per minute
+
+**Query Parameters:**
+- `page`: Page number (default: 1)
+- `limit`: Results per page (default: 10, max: 50)
+
+**Response (200 OK):**
+```json
+{
+  "invoices": [
+    {
+      "id": "inv_abc123",
+      "date": "2025-10-01T00:00:00.000Z",
+      "amount": 19.99,
+      "currency": "USD",
+      "status": "paid",
+      "description": "Pro Plan - Monthly",
+      "downloadUrl": "https://api.errorwise.com/invoices/inv_abc123.pdf"
+    }
+  ],
+  "pagination": {
+    "currentPage": 1,
+    "totalPages": 3,
+    "totalInvoices": 12
+  }
+}
+```
+
+---
+
+## Platform Statistics
+
+### GET `/api/stats`
+
+Get public platform statistics (no authentication required).
+
+**Authentication Required:** No
+
+**Rate Limit:** 100 requests per minute
+
+**Response (200 OK):**
+```json
+{
+  "platform": {
+    "totalUsers": 15234,
+    "totalQueries": 487521,
+    "activeUsers24h": 1234,
+    "averageResponseTime": 1234,
+    "successRate": 96.5
+  },
+  "languages": [
+    { "language": "JavaScript", "count": 145234, "percentage": 29.8 },
+    { "language": "Python", "count": 123421, "percentage": 25.3 },
+    { "language": "Java", "count": 87234, "percentage": 17.9 },
+    { "language": "TypeScript", "count": 65432, "percentage": 13.4 },
+    { "language": "Other", "count": 66200, "percentage": 13.6 }
+  ],
+  "errorCategories": [
+    { "category": "TypeError", "count": 145234, "percentage": 29.8 },
+    { "category": "SyntaxError", "count": 98765, "percentage": 20.3 },
+    { "category": "RuntimeError", "count": 87654, "percentage": 18.0 },
+    { "category": "Other", "count": 155868, "percentage": 31.9 }
+  ]
+}
+```
+
+---
+
+## Webhooks
+
+### Dodo Payments Webhook
+
+**Endpoint:** `POST /api/webhooks/dodo`
+
+**Description:** Receives payment events from Dodo Payments.
+
+**Headers:**
+```http
+X-Dodo-Signature: sha256=abc123...
+Content-Type: application/json
+```
+
+**Event Types:**
+- `subscription.created`
+- `subscription.updated`
+- `subscription.cancelled`
+- `payment.succeeded`
+- `payment.failed`
+
+**Example Payload:**
+```json
+{
+  "event": "payment.succeeded",
+  "data": {
+    "transactionId": "txn_abc123",
+    "amount": 19.99,
+    "currency": "USD",
+    "userId": "123e4567-e89b-12d3-a456-426614174000",
+    "subscriptionTier": "Pro",
+    "timestamp": "2025-10-27T10:30:00.000Z"
+  }
+}
+```
+
+---
+
+## Caching
+
+### Cache Strategy
+
+ErrorWise uses Redis for multi-layer caching:
+
+| Data Type | Cache Key Format | TTL | Purpose |
+|-----------|-----------------|-----|---------|
+| **User Data** | `cache:user:<userId>` | 30 min | Reduce DB queries for user info |
+| **Subscriptions** | `cache:subscription:<userId>` | 1 hour | Cache subscription details |
+| **Platform Stats** | `cache:stats:platform` | 15 min | Cache public statistics |
+| **Subscription Plans** | `cache:plans` | 24 hours | Cache available plans |
+
+### Cache Headers
+
+Cached responses include these headers:
+
+```http
+X-Cache: HIT
+X-Cache-Age: 456
+X-Cache-TTL: 1344
+```
+
+- `X-Cache`: `HIT` (from cache) or `MISS` (from database)
+- `X-Cache-Age`: Seconds since cached
+- `X-Cache-TTL`: Seconds until expiration
+
+---
+
+## Examples
+
+### Complete Registration Flow
+
+```bash
+# 1. Register new user
+curl -X POST http://localhost:3001/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "johndoe",
+    "email": "john@example.com",
+    "password": "SecurePass123!",
+    "securityQuestion": "What is your favorite color?",
+    "securityAnswer": "Blue"
+  }'
+
+# Response includes accessToken and refreshToken
+```
+
+### Error Analysis with Authentication
+
+```bash
+# 2. Analyze an error
+curl -X POST http://localhost:3001/api/errors/analyze \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "errorMessage": "TypeError: Cannot read property map of undefined",
+    "codeSnippet": "const results = data.map(item => item.value);",
+    "language": "javascript"
+  }'
+```
+
+### Subscription Upgrade
+
+```bash
+# 3. Upgrade to Pro
+curl -X POST http://localhost:3001/api/subscriptions/upgrade \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "targetTier": "Pro",
+    "paymentMethod": {
+      "type": "card",
+      "token": "pm_abc123xyz789"
+    }
+  }'
+```
+
+---
+
+## Rate Limiting Details
+
+### Implementation
+
+Rate limiting uses Redis with sliding window algorithm:
+
+```javascript
+// Key format: rate_limit:<tier>:<userId>:<endpoint>
+// Example: rate_limit:Pro:123e4567:errors_analyze
+
+// Sliding window tracking
+{
+  "requests": [
+    { "timestamp": 1698412730, "count": 1 },
+    { "timestamp": 1698412735, "count": 1 },
+    { "timestamp": 1698412740, "count": 1 }
+  ],
+  "total": 3,
+  "windowStart": 1698412700
+}
+```
+
+### Custom Rate Limits
+
+Custom rate limits can be applied per endpoint:
+
+| Endpoint Pattern | Free | Pro | Team |
+|-----------------|------|-----|------|
+| `POST /api/errors/analyze` | 10/month | 500/month | 2000/month |
+| `POST /api/auth/*` | 5/15min | 5/15min | 5/15min |
+| `GET /api/*` | 10/min | 50/min | 200/min |
+| `POST /api/*` | 10/min | 50/min | 200/min |
+
+---
+
+## Security Best Practices
+
+### API Key Storage (Future Feature)
+
+For programmatic access, API keys will be supported:
+
+```http
+Authorization: Bearer <api_key>
+```
+
+### CORS Configuration
+
+Allowed origins:
+- `http://localhost:3000` (development)
+- `https://errorwise.com` (production)
+
+### Request Signing (Webhooks)
+
+Webhook requests are signed using HMAC-SHA256:
+
+```javascript
+const signature = crypto
+  .createHmac('sha256', WEBHOOK_SECRET)
+  .update(JSON.stringify(payload))
+  .digest('hex');
+
+// Compare with X-Dodo-Signature header
+```
+
+---
+
+## Support
+
+- **API Issues:** [GitHub Issues](https://github.com/PankajKumar2804/errorwise-backend/issues)
+- **Documentation:** [Full Docs](https://docs.errorwise.com)
+- **Email:** api@errorwise.com
+
+---
+
+**API Version:** 1.0.0  
+**Last Updated:** October 27, 2025  
+**Next:** See [FRONTEND-INTEGRATION.md](./FRONTEND-INTEGRATION.md) for frontend integration guide
   "email": "string (optional)"
 }
 ```

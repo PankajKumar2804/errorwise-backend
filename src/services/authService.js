@@ -13,3 +13,15 @@ exports.generateRefreshToken = user =>
 exports.verifyRefreshToken = (token, callback) => {
   jwt.verify(token, process.env.JWT_REFRESH_SECRET, callback);
 };
+
+exports.generateResetToken = user => 
+  jwt.sign({ id: user.id, email: user.email }, process.env.JWT_SECRET, { expiresIn: '1h' });
+
+exports.verifyResetToken = token => 
+  jwt.verify(token, process.env.JWT_SECRET);
+
+// Alias for password reset token generation
+exports.generatePasswordResetToken = () => {
+  const crypto = require('crypto');
+  return crypto.randomBytes(32).toString('hex');
+};

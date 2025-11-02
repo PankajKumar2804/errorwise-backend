@@ -14,27 +14,27 @@ const checkUsageLimits = async (req, res, next) => {
     const Subscription = require('../models/Subscription');
     const ErrorQuery = require('../models/ErrorQuery');
 
-    // Get user's subscription details
-    const user = await User.findByPk(userId, {
-      include: [{
-        model: Subscription,
-        attributes: ['tier', 'status', 'endDate']
-      }]
-    });
-
+    // Get user first
+    const user = await User.findByPk(userId);
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
 
+    // Get user's subscription details separately
+    const subscription = await Subscription.findOne({
+      where: { userId },
+      attributes: ['tier', 'status', 'endDate']
+    });
+
     // Determine user's subscription tier
     let tier = 'free';
-    if (user.Subscription && user.Subscription.status === 'active') {
+    if (subscription && subscription.status === 'active') {
       // Check if subscription hasn't expired
       const now = new Date();
-      const endDate = new Date(user.Subscription.endDate);
+      const endDate = new Date(subscription.endDate);
       
       if (endDate > now) {
-        tier = user.Subscription.tier;
+        tier = subscription.tier;
       }
     }
 
@@ -63,7 +63,7 @@ const checkUsageLimits = async (req, res, next) => {
         }
       });
 
-      const dailyLimit = 3; // Free tier limit
+      const dailyLimit = 3; // Free tier limit (as per pricing: 3/day)
       const remainingQueries = dailyLimit - queriesUsedToday;
 
       // Add usage info to request for response
@@ -73,29 +73,67 @@ const checkUsageLimits = async (req, res, next) => {
         used: queriesUsedToday,
         limit: dailyLimit,
         remaining: remainingQueries,
-        resetTime: tomorrow.toISOString()
+        resetTime: tomorrow.toISOString(),
+        percentage: Math.round((queriesUsedToday / dailyLimit) * 100)
       };
 
       // Check if user has exceeded daily limit
       if (queriesUsedToday >= dailyLimit) {
         return res.status(429).json({
           error: 'Daily query limit exceeded',
-          message: `You've reached your daily limit of ${dailyLimit} error queries. Upgrade to Pro plan for unlimited queries!`,
+          code: 'DAILY_LIMIT_EXCEEDED',
+          message: `You've used all ${dailyLimit} free queries today. Upgrade to Pro for unlimited access!`,
           usage: {
             used: queriesUsedToday,
             limit: dailyLimit,
             remaining: 0,
-            resetTime: tomorrow.toISOString()
+            resetTime: tomorrow.toISOString(),
+            percentage: 100
           },
           upgrade: {
-            message: 'Upgrade to Pro Plan for unlimited queries',
+            message: 'Upgrade to Pro for unlimited queries + advanced features',
+            recommendedPlan: 'pro',
             proPlan: {
+              name: 'Pro Plan',
               price: '$2/month',
-              features: ['Unlimited queries', 'Detailed solutions', 'Complete history', '7-day free trial']
+              yearlyPrice: '$20/year (Save $4!)',
+              trialDays: 7,
+              features: [
+                '✅ Unlimited error queries',
+                '✅ Advanced AI analysis (GPT-3.5 + Claude)',
+                '✅ Fix suggestions & code examples',
+                '✅ Complete error history',
+                '✅ URL scraping & documentation',
+                '✅ All Indian languages supported',
+                '✅ Email support'
+              ]
             },
-            upgradeUrl: `${process.env.FRONTEND_URL}/pricing`
+            teamPlan: {
+              name: 'Team Plan',
+              price: '$8/month',
+              yearlyPrice: '$80/year (Save $16!)',
+              trialDays: 14,
+              features: [
+                '✅ Everything in Pro',
+                '✅ Up to 10 team members',
+                '✅ Shared error history',
+                '✅ Team dashboard & analytics',
+                '✅ Premium AI models (GPT-4 + Claude Sonnet)',
+                '✅ Priority support'
+              ]
+            },
+            upgradeUrl: `${process.env.FRONTEND_URL}/pricing`,
+            ctaText: 'Upgrade Now - 7 Day Free Trial'
           }
         });
+      }
+
+      // Add warning if approaching limit
+      if (remainingQueries <= 1) {
+        req.usageWarning = {
+          message: `Only ${remainingQueries} query remaining today. Upgrade to Pro for unlimited access!`,
+          upgradeUrl: `${process.env.FRONTEND_URL}/pricing`
+        };
       }
 
       return next();
@@ -161,29 +199,29 @@ const getUserUsageStats = async (req, res) => {
     const Subscription = require('../models/Subscription');
     const ErrorQuery = require('../models/ErrorQuery');
 
-    // Get user's subscription
-    const user = await User.findByPk(userId, {
-      include: [{
-        model: Subscription,
-        attributes: ['tier', 'status', 'endDate', 'startDate']
-      }]
-    });
-
+    // Get user first (no include to avoid association issues)
+    const user = await User.findByPk(userId);
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
 
+    // Get user's subscription separately
+    const subscription = await Subscription.findOne({
+      where: { userId },
+      attributes: ['tier', 'status', 'endDate', 'startDate']
+    });
+
     // Determine current tier
     let tier = 'free';
-    let subscription = null;
+    let activeSubscription = null;
     
-    if (user.Subscription && user.Subscription.status === 'active') {
+    if (subscription && subscription.status === 'active') {
       const now = new Date();
-      const endDate = new Date(user.Subscription.endDate);
+      const endDate = new Date(subscription.endDate);
       
       if (endDate > now) {
-        tier = user.Subscription.tier;
-        subscription = user.Subscription;
+        tier = subscription.tier;
+        activeSubscription = subscription;
       }
     }
 
@@ -224,17 +262,17 @@ const getUserUsageStats = async (req, res) => {
 
     const response = {
       tier,
-      subscription: subscription ? {
-        tier: subscription.tier,
-        status: subscription.status,
-        startDate: subscription.startDate,
-        endDate: subscription.endDate
+      subscription: activeSubscription ? {
+        tier: activeSubscription.tier,
+        status: activeSubscription.status,
+        startDate: activeSubscription.startDate,
+        endDate: activeSubscription.endDate
       } : null,
       usage: {
         daily: {
           used: dailyQueries,
-          limit: tier === 'free' ? 3 : -1, // -1 means unlimited
-          remaining: tier === 'free' ? Math.max(0, 3 - dailyQueries) : -1
+          limit: tier === 'free' ? 25 : -1, // -1 means unlimited
+          remaining: tier === 'free' ? Math.max(0, 25 - dailyQueries) : -1
         },
         weekly: weeklyQueries,
         monthly: monthlyQueries,
@@ -251,7 +289,8 @@ const getUserUsageStats = async (req, res) => {
     res.json(response);
 
   } catch (error) {
-    console.error('Failed to get usage stats:', error);
+    console.error('Failed to get usage stats - DETAILED ERROR:', error);
+    console.error('Error stack:', error.stack);
     res.status(500).json({ error: 'Failed to get usage statistics' });
   }
 };
@@ -260,7 +299,7 @@ const getUserUsageStats = async (req, res) => {
 function getFeaturesByTier(tier) {
   const features = {
     free: {
-      dailyQueries: 3,
+      dailyQueries: 25,
       errorExplanation: true,
       fixSuggestions: false,
       documentationLinks: false,

@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Authentication Test - ErrorWise</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            border-radius: 16px;
+            padding: 40px;
+            max-width: 500px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        .tab-buttons {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 30px;
+        }
+        .tab-button {
+            flex: 1;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            background: white;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+        .tab-button:hover {
+            border-color: #667eea;
+            color: #667eea;
+        }
+        .tab-button.active {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 600;
+            font-size: 14px;
+        }
+        input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+        input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        button {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+        }
+        button:active {
+            transform: translateY(0);
+        }
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            display: none;
+        }
+        .result.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+            display: block;
+        }
+        .result.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+            display: block;
+        }
+        .result-title {
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        .result-details {
+            font-size: 13px;
+            opacity: 0.9;
+        }
+        .loading {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(255,255,255,.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 0.6s linear infinite;
+            margin-right: 8px;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 Authentication Test</h1>
+        <p class="subtitle">Test all authentication endpoints</p>
+
+        <div class="tab-buttons">
+            <button class="tab-button active" onclick="switchTab('register')">Register</button>
+            <button class="tab-button" onclick="switchTab('login')">Login</button>
+            <button class="tab-button" onclick="switchTab('forgot')">Forgot Password</button>
+        </div>
+
+        <!-- Register Form -->
+        <div id="register" class="tab-content active">
+            <form onsubmit="testRegister(event)">
+                <div class="form-group">
+                    <label>Username</label>
+                    <input type="text" id="reg-username" placeholder="Enter username" required>
+                </div>
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" id="reg-email" placeholder="Enter email" required>
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="reg-password" placeholder="Enter password" required>
+                </div>
+                <button type="submit" id="reg-btn">Register</button>
+            </form>
+            <div id="reg-result" class="result"></div>
+        </div>
+
+        <!-- Login Form -->
+        <div id="login" class="tab-content">
+            <form onsubmit="testLogin(event)">
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" id="login-email" placeholder="Enter email" required>
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="login-password" placeholder="Enter password" required>
+                </div>
+                <button type="submit" id="login-btn">Login</button>
+            </form>
+            <div id="login-result" class="result"></div>
+        </div>
+
+        <!-- Forgot Password Form -->
+        <div id="forgot" class="tab-content">
+            <form onsubmit="testForgotPassword(event)">
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" id="forgot-email" placeholder="Enter email" required>
+                </div>
+                <button type="submit" id="forgot-btn">Send Reset Link</button>
+            </form>
+            <div id="forgot-result" class="result"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:3001/api/auth';
+
+        function switchTab(tab) {
+            // Update buttons
+            document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+
+            // Update content
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            document.getElementById(tab).classList.add('active');
+        }
+
+        function showResult(elementId, success, title, message) {
+            const resultDiv = document.getElementById(elementId);
+            resultDiv.className = `result ${success ? 'success' : 'error'}`;
+            resultDiv.innerHTML = `
+                <div class="result-title">${success ? '✅' : '❌'} ${title}</div>
+                <div class="result-details">${message}</div>
+            `;
+        }
+
+        function setLoading(buttonId, loading) {
+            const btn = document.getElementById(buttonId);
+            if (loading) {
+                btn.disabled = true;
+                btn.innerHTML = '<span class="loading"></span>Processing...';
+            } else {
+                btn.disabled = false;
+                const text = buttonId.includes('reg') ? 'Register' : 
+                            buttonId.includes('login') ? 'Login' : 'Send Reset Link';
+                btn.textContent = text;
+            }
+        }
+
+        async function testRegister(event) {
+            event.preventDefault();
+            setLoading('reg-btn', true);
+
+            const username = document.getElementById('reg-username').value;
+            const email = document.getElementById('reg-email').value;
+            const password = document.getElementById('reg-password').value;
+
+            try {
+                const response = await fetch(`${API_URL}/register`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, email, password })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showResult('reg-result', true, 'Registration Successful!', 
+                        `User: ${data.user.username}<br>Email: ${data.user.email}<br>ID: ${data.user.id}<br>Tier: ${data.user.subscriptionTier}`);
+                    
+                    // Auto-fill login form
+                    document.getElementById('login-email').value = email;
+                    document.getElementById('login-password').value = password;
+                } else {
+                    showResult('reg-result', false, 'Registration Failed', data.error || 'Unknown error');
+                }
+            } catch (error) {
+                showResult('reg-result', false, 'Connection Error', error.message);
+            } finally {
+                setLoading('reg-btn', false);
+            }
+        }
+
+        async function testLogin(event) {
+            event.preventDefault();
+            setLoading('login-btn', true);
+
+            const email = document.getElementById('login-email').value;
+            const password = document.getElementById('login-password').value;
+
+            try {
+                const response = await fetch(`${API_URL}/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showResult('login-result', true, 'Login Successful!', 
+                        `Welcome ${data.user.username}!<br>Email: ${data.user.email}<br>Status: ${data.user.subscriptionStatus}<br>Access Token: ${data.accessToken.substring(0, 30)}...`);
+                } else {
+                    showResult('login-result', false, 'Login Failed', data.error || 'Invalid credentials');
+                }
+            } catch (error) {
+                showResult('login-result', false, 'Connection Error', error.message);
+            } finally {
+                setLoading('login-btn', false);
+            }
+        }
+
+        async function testForgotPassword(event) {
+            event.preventDefault();
+            setLoading('forgot-btn', true);
+
+            const email = document.getElementById('forgot-email').value;
+
+            try {
+                const response = await fetch(`${API_URL}/forgot-password`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showResult('forgot-result', true, 'Reset Link Sent!', 
+                        `${data.message}<br><br><strong>For development:</strong> Check the backend console for the email preview URL.`);
+                } else {
+                    showResult('forgot-result', false, 'Request Failed', data.error || 'Unknown error');
+                }
+            } catch (error) {
+                showResult('forgot-result', false, 'Connection Error', error.message);
+            } finally {
+                setLoading('forgot-btn', false);
+            }
+        }
+
+        // Generate random test data
+        window.onload = function() {
+            const randomId = Math.random().toString(36).substring(7);
+            document.getElementById('reg-username').value = `testuser${randomId}`;
+            document.getElementById('reg-email').value = `test${randomId}@example.com`;
+            document.getElementById('reg-password').value = 'TestPass123!';
+        };
+    </script>
+</body>
+</html>
