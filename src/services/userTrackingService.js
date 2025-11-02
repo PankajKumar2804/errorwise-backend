@@ -312,6 +312,5 @@ module.exports = {
   sendPhoneVerificationOTP,
   verifyPhoneOTP,
   deleteUserAccount,
-  checkDeletedUserHistory,
-  sendVerificationEmail
+  checkDeletedUserHistory
 };
