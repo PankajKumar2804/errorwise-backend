@@ -4761,3 +4761,23 @@
 {"level":"info","message":"Redis client connected","service":"errorwise-backend","timestamp":"2025-11-02T12:14:08.316Z"}
 {"level":"info","message":"Redis client ready to use","service":"errorwise-backend","timestamp":"2025-11-02T12:14:08.330Z"}
 {"level":"info","message":"Server running on port 3001","service":"errorwise-backend","timestamp":"2025-11-02T12:14:08.734Z"}
+{"level":"info","message":"Redis client connected","service":"errorwise-backend","timestamp":"2025-11-02T12:14:11.447Z"}
+{"level":"info","message":"Redis client ready to use","service":"errorwise-backend","timestamp":"2025-11-02T12:14:11.456Z"}
+{"level":"info","message":"Server running on port 3001","service":"errorwise-backend","timestamp":"2025-11-02T12:14:11.887Z"}
+{"level":"info","message":"Email service initialized successfully","service":"errorwise-backend","timestamp":"2025-11-02T12:14:14.991Z"}
+{"level":"info","message":"Redis client connected","service":"errorwise-backend","timestamp":"2025-11-02T12:15:44.278Z"}
+{"level":"info","message":"Redis client ready to use","service":"errorwise-backend","timestamp":"2025-11-02T12:15:44.307Z"}
+{"level":"info","message":"Server running on port 3001","service":"errorwise-backend","timestamp":"2025-11-02T12:15:44.729Z"}
+{"level":"info","message":"Email service initialized successfully","service":"errorwise-backend","timestamp":"2025-11-02T12:15:48.039Z"}
+{"email":"pankaj@getgingee.com","level":"info","message":"Password reset email sent","service":"errorwise-backend","timestamp":"2025-11-02T12:18:30.668Z","userId":"aee17e00-7890-41ad-9cd5-a57dd5144ff7"}
+{"level":"info","message":"Redis client connected","service":"errorwise-backend","timestamp":"2025-11-02T12:23:13.802Z"}
+{"level":"info","message":"Redis client ready to use","service":"errorwise-backend","timestamp":"2025-11-02T12:23:13.879Z"}
+{"level":"info","message":"Server running on port 3001","service":"errorwise-backend","timestamp":"2025-11-02T12:23:14.488Z"}
+{"level":"info","message":"Email service initialized successfully","service":"errorwise-backend","timestamp":"2025-11-02T12:23:17.339Z"}
+{"level":"info","message":"Redis client connected","service":"errorwise-backend","timestamp":"2025-11-02T12:23:38.324Z"}
+{"level":"info","message":"Redis client ready to use","service":"errorwise-backend","timestamp":"2025-11-02T12:23:38.367Z"}
+{"level":"info","message":"Server running on port 3001","service":"errorwise-backend","timestamp":"2025-11-02T12:23:39.388Z"}
+{"level":"info","message":"Email service initialized successfully","service":"errorwise-backend","timestamp":"2025-11-02T12:23:41.910Z"}
+{"level":"info","message":"Redis client connected","service":"errorwise-backend","timestamp":"2025-11-02T12:23:46.202Z"}
+{"level":"info","message":"Redis client ready to use","service":"errorwise-backend","timestamp":"2025-11-02T12:23:46.213Z"}
+{"level":"info","message":"Server running on port 3001","service":"errorwise-backend","timestamp":"2025-11-02T12:23:46.467Z"}

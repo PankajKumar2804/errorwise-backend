@@ -3,7 +3,7 @@ const bcrypt = require('bcryptjs');
 const User = require('../models/User');
 const DeletedUserTracking = require('../models/DeletedUserTracking');
 const ErrorQuery = require('../models/ErrorQuery');
-const { sendEmail } = require('../utils/emailService');
+const emailService = require('../utils/emailService');
 
 /**
  * Hash sensitive data for tracking
@@ -128,7 +128,7 @@ const registerUser = async (userData) => {
   
   // Send verification email
   if (!googleId) {
-    await sendVerificationEmail(user);
+    await emailService.sendVerificationEmail(user.email, user.username, user.emailVerificationToken);
   }
   
   return {
@@ -141,27 +141,6 @@ const registerUser = async (userData) => {
       ? 'Account created but free tier access restricted. Please contact support.'
       : 'Account created successfully. Please verify your email.'
   };
-};
-
-/**
- * Send email verification
- */
-const sendVerificationEmail = async (user) => {
-  const verificationUrl = `${process.env.FRONTEND_URL}/verify-email?token=${user.emailVerificationToken}`;
-  
-  await sendEmail({
-    to: user.email,
-    subject: 'Verify Your Email - ErrorWise',
-    html: `
-      <h2>Welcome to ErrorWise!</h2>
-      <p>Please verify your email address by clicking the link below:</p>
-      <a href="${verificationUrl}" style="padding: 10px 20px; background: #667eea; color: white; text-decoration: none; border-radius: 5px; display: inline-block;">
-        Verify Email
-      </a>
-      <p>This link will expire in 24 hours.</p>
-      <p>If you didn't create an account, please ignore this email.</p>
-    `
-  });
 };
 
 /**
